@@ -1,9 +1,12 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import MicIcon from "./MicIcon";
+import VoiceOverlay from "./VoiceOverlay";
 import { canRecord, startRecording, type Recording } from "../lib/recorder";
 import {
   parseTransactionAudio,
   parseTransactionText,
   saveTransactions,
+  addTransactionCategories,
   localToday,
   type ParseResult,
   type TxnType,
@@ -13,6 +16,8 @@ import type { Category } from "../hooks/useCategories";
 interface Props {
   categories: Category[];
   onSaved: () => Promise<void> | void;
+  /** Called with true while there is parsed data waiting to be edited/saved, false otherwise. */
+  onReviewChange?: (active: boolean) => void;
 }
 
 type Status = "idle" | "recording" | "thinking" | "saving";
@@ -28,6 +33,8 @@ interface Draft {
   /** A category id, NEW (create one) or NONE. */
   categoryChoice: string;
   newCategory: string;
+  /** Additional existing categories the transaction also belongs to. */
+  extraIds: string[];
 }
 
 interface Review {
@@ -47,6 +54,7 @@ function toReview(res: ParseResult): Review {
       party: p.party ?? "",
       categoryChoice: p.category ? p.category.id : p.new_category ? NEW : NONE,
       newCategory: p.new_category ?? "",
+      extraIds: [],
     })),
   };
 }
@@ -58,15 +66,33 @@ const isValid = (d: Draft) =>
   /^\d{4}-\d{2}-\d{2}$/.test(d.date) &&
   !(d.categoryChoice === NEW && !d.newCategory.trim());
 
-export default function TransactionInput({ categories, onSaved }: Props) {
+export default function TransactionInput({ categories, onSaved, onReviewChange }: Props) {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [review, setReview] = useState<Review | null>(null);
+  /** True from the moment the mic starts until its result is shown. Drives the full-screen overlay. */
+  const [viaVoice, setViaVoice] = useState(false);
   const recording = useRef<Recording | null>(null);
+  /** Bumped on every voice job and on cancel, so a cancelled job's late result is ignored. */
+  const job = useRef(0);
   const micAvailable = canRecord();
   const busy = status !== "idle";
+  const reviewing = review !== null;
+
+  // Tell the parent when there's data to review, so it can hide the lists until it's saved.
+  useEffect(() => {
+    onReviewChange?.(reviewing);
+  }, [reviewing, onReviewChange]);
+  useEffect(
+    () => () => {
+      onReviewChange?.(false);
+      recording.current?.cancel(); // never leave the microphone on if this screen goes away
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   function reset() {
     setReview(null);
@@ -92,26 +118,40 @@ export default function TransactionInput({ categories, onSaved }: Props) {
     const rec = recording.current;
     if (!rec) return;
     recording.current = null;
-    setStatus("thinking");
+    const mine = ++job.current;
+    setStatus("thinking"); // the overlay switches from "Recording…" to "Processing…"
     try {
       const blob = await rec.stop();
       if (blob.size < 1000) throw new Error("Didn't catch anything. Please try again.");
-      setReview(toReview(await parseTransactionAudio(blob)));
+      const result = await parseTransactionAudio(blob);
+      if (mine === job.current) setReview(toReview(result));
     } catch (err) {
-      setError((err as Error).message);
+      if (mine === job.current) setError((err as Error).message);
     } finally {
-      setStatus("idle");
+      if (mine === job.current) {
+        setStatus("idle");
+        setViaVoice(false); // overlay closes: either the review form or an error is now showing
+      }
     }
   }
+
+  /** Cancels a live recording, or abandons one that's still being processed. */
+  const cancelVoice = useCallback(() => {
+    job.current++; // a late result from the abandoned job is ignored
+    recording.current?.cancel();
+    recording.current = null;
+    setStatus("idle");
+    setViaVoice(false);
+  }, []);
 
   async function toggleMic() {
     setError(null);
     setNotice(null);
-    if (status === "recording") return finishRecording();
     if (status !== "idle") return;
     try {
       recording.current = await startRecording(() => void finishRecording());
       setStatus("recording");
+      setViaVoice(true);
     } catch {
       setError("Microphone access was denied. Allow it in your settings, or type instead.");
     }
@@ -136,7 +176,7 @@ export default function TransactionInput({ categories, onSaved }: Props) {
     setError(null);
     setStatus("saving");
     try {
-      await saveTransactions(
+      const ids = await saveTransactions(
         review.drafts.map((d) => {
           const existing = d.categoryChoice !== NEW && d.categoryChoice !== NONE;
           return {
@@ -150,6 +190,16 @@ export default function TransactionInput({ categories, onSaved }: Props) {
           };
         }),
       );
+      // Ids come back in the same order as the drafts. Attach any extra categories.
+      try {
+        await Promise.all(
+          review.drafts.map((d, i) => addTransactionCategories(ids[i], d.extraIds.filter((id) => id !== d.categoryChoice))),
+        );
+      } catch (err) {
+        await onSaved();
+        reset();
+        throw new Error(`Saved, but couldn't add the extra categories: ${(err as Error).message}`);
+      }
       await onSaved();
       setNotice(`Saved ${count} ${count === 1 ? "transaction" : "transactions"} ✓`);
       reset();
@@ -162,41 +212,56 @@ export default function TransactionInput({ categories, onSaved }: Props) {
 
   return (
     <section className="card">
-      <h2>Add transactions</h2>
-      <p className="hint">
-        Type or tap the mic, in English or Hindi. You can say several at once, like{" "}
-        <em>“15 sep Akhil 500rs, Ramesh 200 and Swiggy 350”</em>.
-      </p>
+      <h2>{reviewing ? "Review transactions" : "Add transactions"}</h2>
 
-      <form className="input-row" onSubmit={submitText}>
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="e.g. 15 sep Akhil 500rs, Swiggy 350"
-          disabled={busy}
-          aria-label="Transactions"
+      {/* While there's parsed data to edit/save, the input is hidden so the review has the focus. */}
+      {!reviewing && (
+        <>
+          <p className="hint">
+            Type or tap the mic, in English or Hindi. You can say several at once, like{" "}
+            <em>“15 sep Akhil 500rs, Ramesh 200 and Swiggy 350”</em>.
+          </p>
+
+          <form className="input-row" onSubmit={submitText}>
+            <input
+              type="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="e.g. 15 sep Akhil 500rs, Swiggy 350"
+              disabled={busy}
+              aria-label="Transactions"
+            />
+            <button className="btn primary" disabled={!text.trim() || busy}>
+              Add
+            </button>
+            {micAvailable && (
+              <button
+                type="button"
+                className="mic"
+                onClick={toggleMic}
+                disabled={busy}
+                aria-label="Start voice input"
+                title="Tap to speak"
+              >
+                <MicIcon size={26} />
+              </button>
+            )}
+          </form>
+
+          {/* Voice progress is shown by the full-screen overlay; typed input has no overlay. */}
+          {status === "thinking" && !viaVoice && <p className="info">Working it out...</p>}
+          {!micAvailable && <p className="hint">Voice input isn't available on this device, so typing only.</p>}
+        </>
+      )}
+
+      {viaVoice && (status === "recording" || status === "thinking") && (
+        <VoiceOverlay
+          phase={status === "recording" ? "recording" : "processing"}
+          onStop={() => void finishRecording()}
+          onCancel={cancelVoice}
         />
-        <button className="btn primary" disabled={!text.trim() || busy}>
-          Add
-        </button>
-        {micAvailable && (
-          <button
-            type="button"
-            className={`mic ${status === "recording" ? "active" : ""}`}
-            onClick={toggleMic}
-            disabled={status === "thinking" || status === "saving"}
-            aria-label={status === "recording" ? "Stop recording" : "Start voice input"}
-            title={status === "recording" ? "Tap to stop" : "Tap to speak"}
-          >
-            {status === "recording" ? "■" : "🎤"}
-          </button>
-        )}
-      </form>
+      )}
 
-      {status === "recording" && <p className="info">Listening... tap ■ when you're done.</p>}
-      {status === "thinking" && <p className="info">Working it out...</p>}
-      {!micAvailable && <p className="hint">Voice input isn't available on this device, so typing only.</p>}
       {error && <p className="error">{error}</p>}
       {notice && <p className="success">{notice}</p>}
 
@@ -269,6 +334,33 @@ export default function TransactionInput({ categories, onSaved }: Props) {
                       placeholder="e.g. Friends & Family"
                     />
                   </label>
+                )}
+                {categories.length > 1 && (
+                  <div className="wide also-in">
+                    <span className="also-in-label">Also in (optional)</span>
+                    <div className="chip-row">
+                      {categories
+                        .filter((c) => c.id !== d.categoryChoice)
+                        .map((c) => {
+                          const on = d.extraIds.includes(c.id);
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className={`chip ${on ? "on" : ""}`}
+                              aria-pressed={on}
+                              onClick={() =>
+                                updateAt(i, {
+                                  extraIds: on ? d.extraIds.filter((id) => id !== c.id) : [...d.extraIds, c.id],
+                                })
+                              }
+                            >
+                              {c.name}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
                 )}
               </div>
               {!(parseAmount(d.amount) > 0) && <p className="error">Enter an amount greater than 0.</p>}

@@ -36,19 +36,19 @@
   min-height: 46px;
   border-radius: 12px;
   border: 1.5px solid var(--border);
-  background: #fff9f0;
+  background: var(--surface-2);
   color: var(--muted);
   cursor: pointer;
 }
 .type-toggle button.on.debit {
-  background: #f6e1db;
+  background: var(--debit-bg);
   border-color: var(--error);
   color: var(--error);
 }
 .type-toggle button.on.credit {
-  background: #e3ecde;
+  background: var(--credit-bg);
   border-color: var(--success);
-  color: #567a4f;
+  color: var(--credit);
 }
 
 .fields {
@@ -71,7 +71,7 @@
 select {
   font: inherit;
   color: var(--text);
-  background: #fff9f0;
+  background: var(--surface-2);
   border: 1.5px solid var(--border);
   border-radius: 12px;
   padding: 0.7rem 0.8rem;
@@ -87,6 +87,41 @@ input[aria-invalid="true"] {
   border-color: var(--error);
 }
 
+/* "Also in" extra categories */
+.fields .also-in {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.also-in-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--accent-dark);
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.chip {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 0 0.8rem;
+  cursor: pointer;
+}
+.chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 /* List */
 .totals {
   display: flex;
@@ -95,7 +130,7 @@ input[aria-invalid="true"] {
 }
 .totals > div {
   flex: 1;
-  background: #fff9f0;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 0.5rem 0.8rem;
@@ -110,7 +145,7 @@ input[aria-invalid="true"] {
   color: var(--error);
 }
 .credit {
-  color: #5f7f58;
+  color: var(--credit);
 }
 
 .txn-main {
@@ -134,7 +169,7 @@ input[aria-invalid="true"] {
 
 /* Several transactions in one review */
 .txn-draft {
-  background: #fff9f0;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 0.7rem;
@@ -147,4 +182,119 @@ input[aria-invalid="true"] {
 }
 .txn-draft-head .type-toggle {
   flex: 1;
+}
+
+/* Voice recording overlay */
+.voice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem;
+  padding: calc(2rem + env(safe-area-inset-top)) 1.5rem calc(2rem + env(safe-area-inset-bottom));
+  text-align: center;
+  color: #fff;
+  background: rgba(60, 46, 35, 0.94);
+  backdrop-filter: blur(6px);
+}
+.voice-overlay h2 { color: #fff; justify-content: center; font-size: 1.6rem; margin: 0; }
+.voice-sub { margin: 0.4rem 0 0; color: rgba(255, 255, 255, 0.78); }
+.voice-timer { margin: 0.5rem 0 0; font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.voice-timer span { color: rgba(255, 255, 255, 0.55); font-weight: 600; font-size: 1rem; }
+
+.voice-orb {
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 3.2rem;
+}
+.voice-orb.live { background: var(--error); animation: voice-pulse 1.4s infinite; }
+.voice-orb.busy { background: var(--accent); }
+.voice-spinner {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  animation: voice-spin 0.9s linear infinite;
+}
+@keyframes voice-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(192, 96, 74, 0.6); }
+  70% { box-shadow: 0 0 0 34px rgba(192, 96, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(192, 96, 74, 0); }
+}
+@keyframes voice-spin { to { transform: rotate(360deg); } }
+
+.voice-stop {
+  font: inherit;
+  font-weight: 800;
+  font-size: 1.1rem;
+  min-height: 58px;
+  padding: 0 2rem;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--error);
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.voice-stop:active { transform: scale(0.97); }
+.voice-cancel {
+  font: inherit;
+  font-weight: 700;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: underline;
+  min-height: 44px;
+  padding: 0 1rem;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-orb.live, .voice-spinner { animation: none; }
+}
+
+/* Centre the SVG mic glyph inside the round mic button */
+.mic {
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+/* Floating theme toggle (Material-style FAB) */
+.theme-fab {
+  position: fixed;
+  right: calc(1rem + env(safe-area-inset-right));
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  z-index: 900;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.2), 0 6px 10px 0 rgba(0, 0, 0, 0.14), 0 1px 18px 0 rgba(0, 0, 0, 0.12);
+  transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+}
+.theme-fab:hover {
+  background: var(--accent-dark);
+  box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2), 0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 2px rgba(0, 0, 0, 0.12);
+}
+:root[data-theme="dark"] .theme-fab:hover { background: #c79d77; }
+.theme-fab:active { transform: scale(0.94); }
+.theme-fab:focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 3px; }
+.theme-fab svg { transition: transform 0.3s; }
+.theme-fab:hover svg { transform: rotate(20deg); }
+@media (prefers-reduced-motion: reduce) {
+  .theme-fab, .theme-fab svg { transition: none; }
 }

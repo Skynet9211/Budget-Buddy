@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useSession } from "./hooks/useSession";
 import { useCategories } from "./hooks/useCategories";
 import { useTransactions } from "./hooks/useTransactions";
+import { useSpending } from "./hooks/useSpending";
+import Dashboard from "./components/Dashboard";
 import TransactionInput from "./components/TransactionInput";
 import TransactionList from "./components/TransactionList";
 import { supabase } from "./lib/supabase";
@@ -13,7 +15,11 @@ import CategoryList from "./components/CategoryList";
 function Home({ userId, email }: { userId: string; email?: string }) {
   const { categories, loading, error, addMany, rename, remove, reload } = useCategories(userId);
   const txns = useTransactions(userId);
-  const [tab, setTab] = useState<"transactions" | "categories">("transactions");
+  const [tab, setTab] = useState<"dashboard" | "transactions" | "categories">("dashboard");
+  const spending = useSpending(userId, tab === "dashboard");
+  // True while parsed transactions are waiting to be edited and saved. The lists and tabs are
+  // hidden until then, so the user finishes (or cancels) the review first.
+  const [reviewing, setReviewing] = useState(false);
 
   return (
     <main className="page">
@@ -26,26 +32,39 @@ function Home({ userId, email }: { userId: string; email?: string }) {
           Sign out
         </button>
       </header>
-      <nav className="tabs" aria-label="Sections">
-        <button className={tab === "transactions" ? "on" : ""} onClick={() => setTab("transactions")}>
-          Transactions
-        </button>
-        <button className={tab === "categories" ? "on" : ""} onClick={() => setTab("categories")}>
-          Categories
-        </button>
-      </nav>
+      {!reviewing && (
+        <nav className="tabs" aria-label="Sections">
+          <button className={tab === "dashboard" ? "on" : ""} onClick={() => setTab("dashboard")}>
+            Dashboard
+          </button>
+          <button className={tab === "transactions" ? "on" : ""} onClick={() => setTab("transactions")}>
+            Transactions
+          </button>
+          <button className={tab === "categories" ? "on" : ""} onClick={() => setTab("categories")}>
+            Categories
+          </button>
+        </nav>
+      )}
       {error && <p className="error">{error}</p>}
       {txns.error && <p className="error">{txns.error}</p>}
-      {tab === "transactions" ? (
+      {tab === "dashboard" ? (
+        <>
+          {spending.error && <p className="error">{spending.error}</p>}
+          <Dashboard expenses={spending.expenses} loading={spending.loading} />
+        </>
+      ) : tab === "transactions" ? (
         <>
           <TransactionInput
             categories={categories}
+            onReviewChange={setReviewing}
             onSaved={async () => {
               // A transaction can create a new category, so refresh both lists.
               await Promise.all([txns.refresh(), reload()]);
             }}
           />
-          <TransactionList transactions={txns.transactions} loading={txns.loading} onDelete={txns.remove} />
+          {!reviewing && (
+            <TransactionList transactions={txns.transactions} loading={txns.loading} onDelete={txns.remove} />
+          )}
         </>
       ) : (
         <>

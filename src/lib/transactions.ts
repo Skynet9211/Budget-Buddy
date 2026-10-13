@@ -1,3 +1,4 @@
+import type { Expense } from "../types";
 import { supabase } from "./supabase";
 
 export type TxnType = "debit" | "credit";
@@ -117,7 +118,7 @@ export async function fetchTransactions(): Promise<Transaction[]> {
   const { data, error } = await supabase
     .from("transactions")
     .select(
-      "id,type,created_at,category:categories(id,name),date:transaction_dates(txn_date),amount:transaction_amounts(amount,currency),party:transaction_parties(name)",
+      "id,type,created_at,category:categories!category_id(id,name),date:transaction_dates(txn_date),amount:transaction_amounts(amount,currency),party:transaction_parties(name)",
     )
     .order("created_at", { ascending: false })
     .limit(200);
@@ -141,6 +142,60 @@ export async function fetchTransactions(): Promise<Transaction[]> {
       };
     })
     .sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)));
+}
+
+const SPENDING_PAGE = 1000;
+
+/**
+ * Every debit (money out) as a dashboard `Expense`, each with ALL of its categories.
+ * Needs migration 005 (`transaction_categories`). Pages through the table because the API caps
+ * one response (1000 rows by default) and "All time" must not silently truncate.
+ */
+export async function fetchSpending(): Promise<Expense[]> {
+  const out: Expense[] = [];
+  for (let from = 0; ; from += SPENDING_PAGE) {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select(
+        "id,created_at,date:transaction_dates(txn_date),amount:transaction_amounts(amount),party:transaction_parties(name),cats:transaction_categories(category:categories(name))",
+      )
+      .eq("type", "debit")
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, from + SPENDING_PAGE - 1);
+    if (error) throw new Error(error.message);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (data ?? []) as any[];
+    for (const r of rows) {
+      const date = one<{ txn_date: string }>(r.date);
+      const amount = one<{ amount: number | string }>(r.amount);
+      const names: string[] = [];
+      for (const c of (Array.isArray(r.cats) ? r.cats : []) as Array<{ category: unknown }>) {
+        const name = one(c.category as { name: string } | { name: string }[] | null)?.name;
+        if (name && !names.includes(name)) names.push(name);
+      }
+      out.push({
+        id: r.id,
+        date: date?.txn_date ?? String(r.created_at).slice(0, 10),
+        amount: Number(amount?.amount ?? 0),
+        description: one<{ name: string }>(r.party)?.name ?? "Expense",
+        categories: names,
+      });
+    }
+    if (rows.length < SPENDING_PAGE) break;
+  }
+  return out;
+}
+
+/** Adds categories to a transaction, keeping the ones it already has. Needs migration 005. */
+export async function addTransactionCategories(transactionId: string, categoryIds: string[]): Promise<void> {
+  if (!categoryIds.length) return;
+  const { error } = await supabase.rpc("add_transaction_categories", {
+    p_transaction_id: transactionId,
+    p_category_ids: categoryIds,
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
