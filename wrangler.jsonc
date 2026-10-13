@@ -1,5 +1,11 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Must match the name of the Worker in Cloudflare (Workers & Pages -> your project).
   "name": "budget-buddy",
-  "compatibility_date": "2026-10-13",
-  "pages_build_output_dir": "./dist"
+  "compatibility_date": "2025-09-01",
+  // Serves the Vite build output as a static site.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
 }
