@@ -10,6 +10,7 @@
 // `add_transactions` database function. The Groq key lives in the GROQ_API_KEY secret.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveByVectors } from "../_shared/vectors.ts";
 
 const GROQ_URL = "https://api.groq.com/openai/v1";
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
@@ -176,6 +177,54 @@ function sanitize(raw: Raw, today: string, categories: { id: string; name: strin
   return { date, amount, type, party, category: picked, new_category: newCategory };
 }
 
+type Sanitized = ReturnType<typeof sanitize>;
+type CategorySource = "history" | "name" | "llm" | null;
+
+/**
+ * The LLM has already read the note and made its own category guess (the last tier). Before the
+ * user sees it, check it against the vector tiers, which know this user's habits:
+ *   1. HISTORY: similar past transactions agree on a category -> use that, it beats the guess.
+ *   2. NAME:    the party is a near-exact match for a category name -> use it, but only when the
+ *               LLM didn't already pick an existing category.
+ * Never throws: if vectors are unavailable the LLM's answer is kept as is.
+ */
+async function refineCategories(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  items: Sanitized[],
+): Promise<Array<Sanitized & { category_source: CategorySource }>> {
+  const cache = new Map<string, Awaited<ReturnType<typeof resolveByVectors>>>();
+  const out: Array<Sanitized & { category_source: CategorySource }> = [];
+
+  for (const t of items) {
+    const fallback: CategorySource = t.category || t.new_category ? "llm" : null;
+    if (!t.party) {
+      out.push({ ...t, category_source: fallback });
+      continue;
+    }
+    try {
+      // History is per direction (a "Salary" credit must not vote on a debit), so key on both.
+      const key = `${t.type}|${t.party.toLowerCase()}`;
+      let found = cache.get(key);
+      if (!found) {
+        found = await resolveByVectors(supabase, t.party, { type: t.type });
+        cache.set(key, found);
+      }
+      if (found.source === "history" && found.category) {
+        out.push({ ...t, category: found.category, new_category: null, category_source: "history" });
+      } else if (found.source === "name" && found.category && !t.category) {
+        out.push({ ...t, category: found.category, new_category: null, category_source: "name" });
+      } else {
+        out.push({ ...t, category_source: fallback });
+      }
+    } catch (err) {
+      console.warn("Vector categorisation skipped:", (err as Error).message);
+      out.push({ ...t, category_source: fallback });
+    }
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -232,11 +281,12 @@ Deno.serve(async (req) => {
     const categories = rows ?? [];
 
     const raw = await parseWithLlm(text, today, categories.map((c) => c.name), apiKey);
-    const transactions = raw
+    const parsed = raw
       .slice(0, MAX_TRANSACTIONS)
       .map((r) => sanitize(r, today, categories))
       // An entry with neither an amount nor a person carries no information.
       .filter((t) => t.amount !== null || t.party !== null);
+    const transactions = await refineCategories(supabase, parsed);
     return json({ transcript, text, transactions });
   } catch (err) {
     console.error(err);

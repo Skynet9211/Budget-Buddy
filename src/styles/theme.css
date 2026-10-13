@@ -1,4 +1,10 @@
+/*
+ * These are only the fallback (Mocha) values. The active palette is written onto <html> as inline
+ * custom properties by src/hooks/useTheme.ts, using the palettes in src/lib/themes.ts.
+ */
 :root {
+  --accent-hover: #8c6a4a;
+  --accent-rgb: 176, 137, 104;
   --bg: #f5efe6;
   --card: #fbf7f0;
   --border: #e4d8c6;
@@ -18,8 +24,9 @@
   color-scheme: light;
 }
 
-/* Dark theme: set by the floating toggle (data-theme on <html>). */
+/* Dark fallback (data-theme on <html>). */
 :root[data-theme="dark"] {
+  --accent-hover: #c79d77;
   --bg: #1d1814;
   --card: #29221c;
   --border: #40362c;
@@ -98,7 +105,7 @@ input {
 input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(176, 137, 104, 0.2);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.2);
 }
 
 .btn {
@@ -114,7 +121,7 @@ input:focus {
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.primary { background: var(--accent); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: var(--accent-dark); }
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
 .btn.ghost { background: var(--tint); color: var(--accent-dark); }
 .btn.link { background: none; color: var(--accent-dark); text-decoration: underline; }
 .btn.small { min-height: 38px; padding: 0.4rem 0.8rem; font-size: 0.85rem; }

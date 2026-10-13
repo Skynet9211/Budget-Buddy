@@ -40,16 +40,16 @@ export default function SpendOverTime({ data, granularity }: { data: TimeBucket[
   return (
     <ResponsiveContainer width="100%" height={240}>
       <BarChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4d8c6" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#8a7766" }} minTickGap={14} />
-        <YAxis tick={{ fontSize: 11, fill: "#8a7766" }} tickFormatter={formatMoneyCompact} width={56} />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted)" }} minTickGap={14} />
+        <YAxis tick={{ fontSize: 11, fill: "var(--muted)" }} tickFormatter={formatMoneyCompact} width={56} />
         <Tooltip
           formatter={(v: number) => [formatMoney(v), "Spent"]}
           labelFormatter={(l) => (granularity === "weekly" ? `Week of ${l}` : String(l))}
-          cursor={{ fill: "rgba(176,137,104,0.12)" }}
+          cursor={{ fill: "rgba(var(--accent-rgb), 0.12)" }}
           {...TOOLTIP_STYLE}
         />
-        <Bar dataKey="total" fill="#b08968" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="total" fill="var(--accent)" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

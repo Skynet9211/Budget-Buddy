@@ -7,7 +7,9 @@ import {
   totalSpend,
 } from "../lib/analytics";
 import { daysInclusive, formatFullDate } from "../lib/dates";
+import { useTheme } from "../hooks/useTheme";
 import { colorMap, formatMoney, formatMoneyShort } from "../lib/format";
+import { chartColors, getPalette } from "../lib/themes";
 import type { Expense, Granularity, MultiCategoryMode } from "../types";
 import CategoryChart from "./dashboard/CategoryChart";
 import DateFilter, { defaultRange, type DateRange } from "./dashboard/DateFilter";
@@ -32,7 +34,11 @@ export default function Dashboard({ expenses, loading }: Props) {
   const filtered = useMemo(() => filterByRange(expenses, range.from, range.to), [expenses, range]);
   const total = useMemo(() => totalSpend(filtered), [filtered]);
   const byCategory = useMemo(() => categoryTotals(filtered, mode), [filtered, mode]);
-  const colors = useMemo(() => colorMap(byCategory.map((c) => c.name)), [byCategory]);
+  const { palette, resolved } = useTheme();
+  const colors = useMemo(
+    () => colorMap(byCategory.map((c) => c.name), chartColors(getPalette(palette), resolved)),
+    [byCategory, palette, resolved],
+  );
   const series = useMemo(
     () => timeSeries(filtered, range.from, range.to, granularity),
     [filtered, range, granularity],

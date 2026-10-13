@@ -1,25 +1,27 @@
-// Supabase Edge Function (Deno). Assigns a transaction description to one of the user's categories.
+// Supabase Edge Function (Deno). Assigns a transaction to one of the user's categories.
 //
-//   POST { "action": "sync" }            -> embeds any categories that have no vector yet
-//   POST { "text": "Swiggy order 450" }  -> returns the best category
+//   POST { "action": "sync" }                          -> embeds categories AND past transactions that have no vector yet
+//   POST { "text": "Swiggy order 450", "party": "Swiggy", "type": "debit" }
+//                                                      -> returns the best category
 //
-// How a match is made:
-//   1. Embed the text with Supabase's built-in `gte-small` model (free, no API key).
-//   2. Ask Postgres (pgvector, `match_categories`) for the nearest categories.
-//   3. If the top hit is a clear winner, return it. No LLM call.
-//   4. Otherwise give Groq only the shortlist and let it pick (or suggest a new category).
+// Tiers (each runs only if the one before it wasn't sure; see _shared/vectors.ts):
+//   1. HISTORY - the user's own similar past transactions vote on the category. No LLM call.
+//   2. NAME    - nearest category names (pgvector). No LLM call.
+//   3. LLM     - Groq gets the shortlist plus a few similar past transactions as examples, and
+//                picks one (or suggests a new category).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  type CategoryRef,
+  type Neighbour,
+  resolveByVectors,
+  syncCategories,
+  syncTransactions,
+} from "../_shared/vectors.ts";
 
 const GROQ_URL = "https://api.groq.com/openai/v1";
 const MAX_TEXT_CHARS = 500;
-const SYNC_BATCH = 100;
-const SHORTLIST_SIZE = 5;
-
-// Skip the LLM when the best match is at least this similar AND beats the runner-up by MARGIN.
-// gte-small scores run high (unrelated text is often ~0.75-0.8), so keep this strict. Tune by testing.
-const DIRECT_THRESHOLD = Number(Deno.env.get("CATEGORIZE_DIRECT_THRESHOLD") ?? "0.92");
-const DIRECT_MARGIN = Number(Deno.env.get("CATEGORIZE_DIRECT_MARGIN") ?? "0.03");
+const MAX_EXAMPLES = 5;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,25 +36,8 @@ function json(body: unknown, status = 200) {
   });
 }
 
-// deno-lint-ignore no-explicit-any
-const embedder = new (globalThis as any).Supabase.ai.Session("gte-small");
-
-async function embed(text: string): Promise<number[]> {
-  const out = await embedder.run(text, { mean_pool: true, normalize: true });
-  return Array.from(out as ArrayLike<number>);
-}
-
-// pgvector accepts the text form "[0.1,0.2,...]", which is safe over PostgREST.
-const toVector = (v: number[]) => JSON.stringify(v);
-
-interface Match {
-  id: string;
-  name: string;
-  similarity: number;
-}
-
 const SYSTEM_PROMPT = `You assign a personal-budget transaction description to a spending category.
-You get the description and a shortlist of the user's existing categories (best vector matches first).
+You get the description, a shortlist of the user's existing categories, and sometimes examples of how this user categorised similar past transactions (closest first). Follow the user's own habits shown in the examples.
 Rules:
 - Return ONLY JSON: {"category": "<exact name from the list or null>", "suggestion": "<new category name or null>"}
 - Pick from the list only if it is a genuinely good fit. Copy the name exactly as written.
@@ -62,10 +47,14 @@ Rules:
 
 async function pickWithLlm(
   text: string,
-  candidates: Match[],
+  candidates: CategoryRef[],
+  examples: Neighbour[],
   apiKey: string,
 ): Promise<{ category: string | null; suggestion: string | null }> {
   const list = candidates.length ? candidates.map((c) => `- ${c.name}`).join("\n") : "(none yet)";
+  const shots = examples.length
+    ? `\n\nSimilar past transactions by this user:\n${examples.map((e) => `- ${e.party ?? "(no name)"} -> ${e.category_name}`).join("\n")}`
+    : "";
   const res = await fetch(`${GROQ_URL}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -75,7 +64,7 @@ async function pickWithLlm(
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Description: ${text}\n\nCategories:\n${list}` },
+        { role: "user", content: `Description: ${text}\n\nCategories:\n${list}${shots}` },
       ],
     }),
   });
@@ -114,60 +103,62 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
 
-    // ---- sync: embed categories that are missing a vector ----
+    // ---- sync: embed categories and transactions that are missing a vector ----
     if (body?.action === "sync") {
-      const { data: rows, error } = await supabase
-        .from("categories")
-        .select("id,name")
-        .is("embedding", null)
-        .limit(SYNC_BATCH);
-      if (error) throw new Error(error.message);
-
-      let synced = 0;
-      for (const row of rows ?? []) {
-        const vector = await embed(row.name);
-        const { error: upErr } = await supabase
-          .from("categories")
-          .update({ embedding: toVector(vector) })
-          .eq("id", row.id);
-        if (upErr) throw new Error(upErr.message);
-        synced++;
-      }
-      return json({ synced, more: (rows?.length ?? 0) === SYNC_BATCH });
+      const cats = await syncCategories(supabase);
+      const txns = await syncTransactions(supabase);
+      return json({
+        synced: cats.done, // categories (kept under this name for older clients)
+        syncedTransactions: txns.done,
+        more: cats.more || txns.more,
+      });
     }
 
     // ---- categorize ----
     const text = String(body?.text ?? "").trim().slice(0, MAX_TEXT_CHARS);
     if (!text) return json({ error: "No text provided" }, 400);
+    const party = typeof body?.party === "string" ? body.party.trim().slice(0, 60) : "";
+    const type = body?.type === "credit" ? "credit" : body?.type === "debit" ? "debit" : null;
 
-    const { data: matches, error: matchErr } = await supabase.rpc("match_categories", {
-      query_embedding: toVector(await embed(text)),
-      match_count: SHORTLIST_SIZE,
-    });
-    if (matchErr) throw new Error(matchErr.message);
-    const candidates = (matches ?? []) as Match[];
+    // History is keyed on the party name (that's what gets embedded); fall back to the whole text.
+    const found = await resolveByVectors(supabase, party || text, { type });
 
-    const [top, second] = candidates;
-    if (top && top.similarity >= DIRECT_THRESHOLD && (!second || top.similarity - second.similarity >= DIRECT_MARGIN)) {
-      return json({ source: "vector", category: top, suggestion: null, candidates });
+    if (found.source && found.category) {
+      return json({
+        source: found.source === "history" ? "history" : "vector",
+        category: { ...found.category, similarity: found.neighbours[0]?.similarity ?? found.nameMatches[0]?.similarity ?? 0 },
+        suggestion: null,
+        confidence: found.confidence,
+        candidates: found.nameMatches,
+      });
     }
+
+    // Shortlist for the LLM: the nearest category names, plus the categories this user has
+    // actually used for similar transactions (deduplicated).
+    const candidates: CategoryRef[] = [...found.nameMatches.map(({ id, name }) => ({ id, name }))];
+    for (const n of found.neighbours) {
+      if (!candidates.some((c) => c.id === n.category_id)) candidates.push({ id: n.category_id, name: n.category_name });
+    }
+    const examples = found.neighbours.slice(0, MAX_EXAMPLES);
 
     const apiKey = Deno.env.get("GROQ_API_KEY");
     if (!apiKey) {
       // No LLM available and no clear winner: return the shortlist so the app can ask the user.
-      return json({ source: "vector-low", category: null, suggestion: null, candidates });
+      return json({ source: "vector-low", category: null, suggestion: null, candidates: found.nameMatches });
     }
 
-    const pick = await pickWithLlm(text, candidates, apiKey);
+    const pick = await pickWithLlm(text, candidates, examples, apiKey);
     const chosen = pick.category
       ? candidates.find((c) => c.name.trim().toLowerCase() === pick.category!.trim().toLowerCase()) ?? null
       : null;
     return json({
       source: "llm",
-      category: chosen,
+      category: chosen
+        ? { ...chosen, similarity: found.nameMatches.find((m) => m.id === chosen.id)?.similarity ?? 0 }
+        : null,
       // Only suggest a new name when the model didn't pick an existing category.
       suggestion: chosen ? null : pick.suggestion,
-      candidates,
+      candidates: found.nameMatches,
     });
   } catch (err) {
     console.error(err);

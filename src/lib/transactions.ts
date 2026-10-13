@@ -12,6 +12,8 @@ export interface ParsedTransaction {
   category: { id: string; name: string } | null;
   /** A category to create because no existing one fits. */
   new_category: string | null;
+  /** Who decided the category: the user's own history, a matching category name, or the AI. */
+  category_source?: "history" | "name" | "llm" | null;
 }
 
 export interface ParseResult {

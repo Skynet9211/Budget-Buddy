@@ -1,60 +1,99 @@
-import { useCallback, useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+import { DEFAULT_PALETTE, buildVars, getPalette, isPaletteId, type Mode, type Resolved } from "../lib/themes";
 
-export type Theme = "light" | "dark";
+export type { Mode, Resolved } from "../lib/themes";
 
-const KEY = "budgetApp.theme";
-const META_COLORS: Record<Theme, string> = { light: "#F5EFE6", dark: "#1D1814" };
+export interface ThemeState {
+  /** What the user picked: light, dark, or follow the device. */
+  mode: Mode;
+  palette: string;
+  /** The mode actually on screen (`system` resolved to light or dark). */
+  resolved: Resolved;
+}
 
-function stored(): Theme | null {
+// "budgetApp.theme" already held "light" | "dark" from the old toggle, so existing choices carry over.
+const MODE_KEY = "budgetApp.theme";
+const PALETTE_KEY = "budgetApp.palette";
+
+function read(key: string): string | null {
   try {
-    const v = localStorage.getItem(KEY);
-    return v === "light" || v === "dark" ? v : null;
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-const systemTheme = (): Theme =>
-  window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-
-/** What to show right now: the user's saved choice, otherwise the device setting. */
-export const initialTheme = (): Theme => stored() ?? systemTheme();
-
-export function applyTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", META_COLORS[theme]);
+function write(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* private mode etc.: the choice just won't persist */
+  }
 }
 
-/**
- * Light/dark theme. Starts from the saved choice (or the device setting), persists changes, and
- * follows the device setting live until the user picks one themselves.
- */
+const darkQuery = () => window.matchMedia?.("(prefers-color-scheme: dark)");
+const resolve = (mode: Mode): Resolved =>
+  mode === "system" ? (darkQuery()?.matches ? "dark" : "light") : mode;
+
+function load(): ThemeState {
+  const m = read(MODE_KEY);
+  const mode: Mode = m === "light" || m === "dark" || m === "system" ? m : "system";
+  const p = read(PALETTE_KEY);
+  return { mode, palette: isPaletteId(p) ? p : DEFAULT_PALETTE, resolved: resolve(mode) };
+}
+
+let state: ThemeState = load();
+const listeners = new Set<() => void>();
+
+function apply(s: ThemeState) {
+  const root = document.documentElement;
+  const vars = buildVars(getPalette(s.palette), s.resolved);
+  for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
+  root.dataset.theme = s.resolved; // drives color-scheme (form controls, scrollbars)
+  root.dataset.palette = s.palette;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", vars["--bg"]);
+}
+
+function update(next: ThemeState) {
+  if (next.mode === state.mode && next.palette === state.palette && next.resolved === state.resolved) return;
+  state = next;
+  apply(state);
+  listeners.forEach((l) => l());
+}
+
+let started = false;
+
+/** Call once before the first render: paints the saved theme and follows the device setting. */
+export function initTheme() {
+  apply(state);
+  if (started) return;
+  started = true;
+  darkQuery()?.addEventListener("change", () => {
+    if (state.mode === "system") update({ ...state, resolved: resolve("system") });
+  });
+  // Another tab/window changed the theme: follow it.
+  window.addEventListener("storage", (e) => {
+    if (e.key === null || e.key === MODE_KEY || e.key === PALETTE_KEY) update(load());
+  });
+}
+
+export function setMode(mode: Mode) {
+  write(MODE_KEY, mode);
+  update({ ...state, mode, resolved: resolve(mode) });
+}
+
+export function setPalette(palette: string) {
+  if (!isPaletteId(palette)) return;
+  write(PALETTE_KEY, palette);
+  update({ ...state, palette });
+}
+
+const subscribe = (cb: () => void) => {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+};
+
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(initialTheme);
-
-  useEffect(() => applyTheme(theme), [theme]);
-
-  useEffect(() => {
-    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
-    if (!mq) return;
-    const onChange = () => {
-      if (!stored()) setTheme(mq.matches ? "dark" : "light");
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  const toggle = useCallback(() => {
-    setTheme((t) => {
-      const next: Theme = t === "dark" ? "light" : "dark";
-      try {
-        localStorage.setItem(KEY, next);
-      } catch {
-        /* private mode etc.: the choice just won't persist */
-      }
-      return next;
-    });
-  }, []);
-
-  return { theme, toggle };
+  const s = useSyncExternalStore(subscribe, () => state);
+  return { ...s, setMode, setPalette };
 }

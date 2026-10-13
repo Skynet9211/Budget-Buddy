@@ -16,7 +16,22 @@ Budget Buddy is a personal expense tracking app for managing spending, categoriz
 
 ### Smart category matching
 
-The app stores categories and uses a vector-based search approach to find the closest match for a transaction description. If the match is uncertain, it can fall back to a Groq-powered AI check for a better suggestion.
+Categories are chosen in tiers. Each tier runs only if the one before it wasn't sure:
+
+1. **History**: the party name (e.g. "Swiggy") is embedded and compared with your own past, categorised transactions (pgvector). The nearest ones vote on the category, weighted by similarity. No AI call.
+2. **Category names**: the nearest category names by vector similarity. Covers the cold start, when there's little history. No AI call.
+3. **AI (Groq)**: picks from a shortlist, shown a few similar past transactions as examples. It can also suggest a new category.
+
+Every result is still shown for review before saving, and every saved transaction becomes history for next time. Embeddings use Supabase's built-in `gte-small` model (no API key). They're written in the background by the `categorize` function's `sync` action, which the app runs after each save. Run migration `006_transaction_vectors.sql` to enable the history tier. Without it, the app falls back to the other tiers.
+
+Optional function secrets for tuning (similarity is cosine, 0 to 1):
+
+| Secret | Default | Meaning |
+| --- | --- | --- |
+| `CATEGORIZE_HISTORY_MIN_SIM` | `0.92` | Closest past transaction must be at least this similar |
+| `CATEGORIZE_HISTORY_MIN_SHARE` | `0.7` | Winning category's share of the weighted votes |
+| `CATEGORIZE_NEIGHBOUR_FLOOR` | `0.85` | Past transactions below this similarity are ignored |
+| `CATEGORIZE_DIRECT_THRESHOLD` / `CATEGORIZE_DIRECT_MARGIN` | `0.92` / `0.03` | Category-name tier |
 
 
 ### Multi-transaction notes
