@@ -13,7 +13,7 @@
     "pages:deploy": "npm run build && npx wrangler pages deploy dist --project-name=budget-buddy"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
