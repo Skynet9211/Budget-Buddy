@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "android:sync": "npm run build && npx cap sync android",
-    "android:open": "npx cap open android",
-    "pages:deploy": "npm run build && npx wrangler pages deploy dist --project-name=budget-buddy"
+    "android:open": "npx cap open android"
   },
   "engines": {
     "node": ">=22"
