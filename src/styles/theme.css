@@ -226,8 +226,101 @@ input:focus {
   margin-top: 0.6rem;
 }
 
+.list-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.list-filter {
+  flex: 1;
+  min-width: 0;
+}
+
 .list-filter input {
   background: var(--surface-2);
+}
+
+.help-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--accent-dark);
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.help-btn:hover {
+  background: var(--tint);
+}
+
+.search-help-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 8, 7, 0.45);
+  padding: 1rem;
+  z-index: 50;
+}
+
+.search-help-dialog {
+  width: min(420px, 92vw);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+
+.search-help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.search-help-header h3 {
+  margin: 0;
+}
+
+.search-help-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.45rem;
+  color: var(--text);
+}
+
+.search-help-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.search-help-examples {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+
+.search-help-examples h4 {
+  margin: 0 0 0.4rem;
+  color: var(--accent-dark);
+}
+
+.search-help-examples p {
+  margin: 0.25rem 0;
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .cat-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
