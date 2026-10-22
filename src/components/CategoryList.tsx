@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Category } from "../hooks/useCategories";
+import { useSearch } from "../hooks/useSearch";
 import { emojiFor } from "../lib/categories";
 
 interface Props {
@@ -13,6 +14,7 @@ export default function CategoryList({ categories, loading, onRename, onDelete }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { query, setQuery, filtered } = useSearch(categories, (c, q) => c.name.toLowerCase().includes(q));
 
   async function save(id: string) {
     const err = await onRename(id, draft);
@@ -25,14 +27,25 @@ export default function CategoryList({ categories, loading, onRename, onDelete }
 
   return (
     <section className="card">
-      <h2>Your categories {categories.length > 0 && <span className="count">{categories.length}</span>}</h2>
+      <h2>Your categories {filtered.length > 0 && <span className="count">{filtered.length}</span>}</h2>
+
+      <div className="list-filter">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search categories"
+          aria-label="Search categories"
+        />
+      </div>
+
       {loading && <p className="hint">Loading...</p>}
-      {!loading && categories.length === 0 && (
-        <p className="empty">No categories yet. Add your first one above ✨</p>
+      {!loading && filtered.length === 0 && (
+        <p className="empty">{query ? "No matching categories found" : "No categories yet. Add your first one above ✨"}</p>
       )}
       {error && <p className="error">{error}</p>}
       <ul className="cat-list">
-        {categories.map((c) => (
+        {filtered.map((c) => (
           <li key={c.id} className="cat">
             <span className="emoji">{emojiFor(c.name)}</span>
             {editingId === c.id ? (

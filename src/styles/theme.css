@@ -221,3 +221,75 @@ input:focus {
 .auth .logo { font-size: 3rem; }
 .form { display: flex; flex-direction: column; gap: 0.8rem; text-align: left; margin-top: 0.5rem; }
 .form label { display: flex; flex-direction: column; gap: 0.3rem; font-weight: 700; font-size: 0.9rem; }
+
+.list-filter {
+  margin-top: 0.6rem;
+}
+
+.list-filter input {
+  background: var(--surface-2);
+}
+
+.cat-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.cat {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.55rem 0.7rem;
+}
+.cat .emoji {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--tint);
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.cat .name { flex: 1; font-weight: 700; overflow-wrap: anywhere; }
+
+.txn {
+  padding-right: 0.45rem;
+}
+
+.txn-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: inherit;
+  text-decoration: none;
+}
+.txn-link:hover .name,
+.txn-link:focus-visible .name {
+  color: var(--accent-dark);
+}
+.txn-link:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.txn-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.txn-main .name {
+  flex: none;
+}
+.txn-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.txn .amount {
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
