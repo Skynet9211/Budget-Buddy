@@ -1,58 +1,112 @@
 import { useMemo, useState } from "react";
 
-type SearchTerm = {
+export type SearchTerm = {
   include: boolean;
   field: string | null;
   raw: string;
+  exact?: boolean;
   comparator?: "eq" | "gt" | "lt" | "gte" | "lte";
   numberValue?: number;
 };
 
-export function parseSearchTerms(query: string): SearchTerm[] {
-  const text = query.trim();
-  if (!text) return [];
+export type SearchQueryAST = {
+  type: "and";
+  raw: string;
+  terms: SearchTerm[];
+};
 
-  const clauses: SearchTerm[] = [];
+type SearchToken = {
+  value: string;
+  quoted: boolean;
+};
+
+const normalizeWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+const normalizeValue = (value: string | number | null | undefined) => String(value ?? "").trim().toLowerCase();
+
+function tokenizeSearchSegment(segment: string): SearchToken[] {
+  const tokens: SearchToken[] = [];
+  let current = "";
+  let inQuotes = false;
+  let tokenWasQuoted = false;
+
+  for (const char of segment) {
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      tokenWasQuoted = tokenWasQuoted || inQuotes;
+      continue;
+    }
+
+    if (char === " " && !inQuotes) {
+      const value = normalizeWhitespace(current);
+      if (value) tokens.push({ value, quoted: tokenWasQuoted });
+      current = "";
+      tokenWasQuoted = false;
+      continue;
+    }
+
+    current += char;
+  }
+
+  const finalValue = normalizeWhitespace(current);
+  if (finalValue) tokens.push({ value: finalValue, quoted: tokenWasQuoted });
+
+  return tokens;
+}
+
+export function parseSearchQuery(query: string): SearchQueryAST {
+  const text = query.trim();
+  if (!text) return { type: "and", raw: query, terms: [] };
+
+  const terms: SearchTerm[] = [];
 
   for (const segment of text.split(";")) {
     const trimmed = segment.trim();
     if (!trimmed) continue;
 
-    const hasPrefix = trimmed.startsWith("+") || trimmed.startsWith("-");
-    const prefix = hasPrefix ? trimmed[0] : "";
-    const body = hasPrefix ? trimmed.slice(1).trim() : trimmed.trim();
-    if (!body) continue;
+    for (const token of tokenizeSearchSegment(trimmed)) {
+      let include = true;
+      let body = token.value;
 
-    const fieldMatch = body.match(/^([a-zA-Z]+)\s*:\s*(.+)$/);
-    if (fieldMatch) {
-      const field = fieldMatch[1].trim().toLowerCase();
-      const value = fieldMatch[2].trim();
-      const numericMatch = value.match(/^(>=|<=|>|<|=)?\s*(\d+)\s*$/);
+      if (body.startsWith("+") || body.startsWith("-")) {
+        include = body[0] !== "-";
+        body = body.slice(1).trim();
+      }
 
-      if (["price", "amount"].includes(field) && numericMatch) {
-        const op = numericMatch[1] || "=";
-        const numberValue = Number(numericMatch[2]);
-        const comparator =
-          op === ">" ? "gt" : op === "<" ? "lt" : op === ">=" ? "gte" : op === "<=" ? "lte" : "eq";
+      if (!body) continue;
 
-        clauses.push({ include: prefix !== "-", field, raw: value, comparator, numberValue });
+      const fieldMatch = body.match(/^([a-zA-Z][a-zA-Z0-9_-]*)\s*:\s*(.+)$/);
+      if (fieldMatch) {
+        const field = fieldMatch[1].trim().toLowerCase();
+        const value = fieldMatch[2].trim();
+
+        if (!field || !value) continue;
+
+        const numericMatch = value.match(/^(>=|<=|>|<|=)?\s*(\d+(?:\.\d+)?)\s*$/);
+        if (["price", "amount"].includes(field) && numericMatch) {
+          const op = numericMatch[1] || "=";
+          const numberValue = Number(numericMatch[2]);
+          const comparator =
+            op === ">" ? "gt" : op === "<" ? "lt" : op === ">=" ? "gte" : op === "<=" ? "lte" : "eq";
+
+          terms.push({ include, field, raw: value, exact: token.quoted, comparator, numberValue });
+          continue;
+        }
+
+        terms.push({ include, field, raw: value, exact: token.quoted });
         continue;
       }
 
-      clauses.push({ include: prefix !== "-", field, raw: value });
-      continue;
-    }
+      if (/^[a-zA-Z][a-zA-Z0-9_-]*\s*:\s*$/.test(body)) continue;
 
-    const words = body.split(/\s+/).filter(Boolean);
-    if (words.length > 1) {
-      for (const word of words) clauses.push({ include: prefix !== "-", field: null, raw: word });
-      continue;
+      terms.push({ include, field: null, raw: body, exact: token.quoted });
     }
-
-    clauses.push({ include: prefix !== "-", field: null, raw: body });
   }
 
-  return clauses;
+  return { type: "and", raw: query, terms };
+}
+
+export function parseSearchTerms(query: string): SearchTerm[] {
+  return parseSearchQuery(query).terms;
 }
 
 export function matchesSearchTerm<T>(
@@ -61,11 +115,11 @@ export function matchesSearchTerm<T>(
   getFieldValue: (item: T, field: string) => string | number | null,
   getFallbackText: (item: T) => string,
 ): boolean {
-  const normalize = (value: string | number | null | undefined) => String(value ?? "").trim().toLowerCase();
+  const normalizeField = (value: string | number | null | undefined) => normalizeValue(value);
 
   if (term.field) {
     const fieldValue = getFieldValue(item, term.field);
-    const valueText = normalize(fieldValue);
+    const valueText = normalizeField(fieldValue);
 
     if (term.comparator && typeof term.numberValue === "number") {
       const numericValue = typeof fieldValue === "number" ? fieldValue : Number(fieldValue ?? NaN);
@@ -85,10 +139,17 @@ export function matchesSearchTerm<T>(
       }
     }
 
-    return valueText.includes(normalize(term.raw));
+    const needle = normalizeWhitespace(normalizeValue(term.raw));
+    if (!needle) return false;
+    return valueText.includes(needle);
   }
 
-  return normalize(getFallbackText(item)).includes(normalize(term.raw));
+  const haystack = normalizeWhitespace(normalizeValue(getFallbackText(item)));
+  const needle = normalizeWhitespace(normalizeValue(term.raw));
+  if (!needle) return false;
+
+  if (term.exact) return haystack.includes(needle);
+  return haystack.includes(needle);
 }
 
 export function matchesSearchQuery<T>(
