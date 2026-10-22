@@ -52,7 +52,7 @@ describe("matchesSearchQuery", () => {
     amount: 125,
   };
 
-  it("matches app-relevant namespace and exact text filters", () => {
+  it("matches app-relevant namespace and exact text filters.", () => {
     expect(
       matchesSearchQuery(
         item,
