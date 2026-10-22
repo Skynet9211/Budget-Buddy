@@ -274,8 +274,20 @@ export function useSearchSuggestions(options: {
   return { suggestions, appendSuggestion };
 }
 
-export function useSearch<T>(items: T[], matcher: (item: T, query: string) => boolean) {
-  const [query, setQuery] = useState("");
+export function useGlobalSearch(initialQuery = "") {
+  const [query, setQuery] = useState(initialQuery);
+  return { query, setQuery };
+}
+
+export function useSearch<T>(
+  items: T[],
+  matcher: (item: T, query: string) => boolean,
+  externalQuery?: string,
+  setExternalQuery?: (nextQuery: string) => void,
+) {
+  const [localQuery, setLocalQuery] = useState("");
+  const query = externalQuery ?? localQuery;
+  const setQuery = setExternalQuery ?? setLocalQuery;
 
   const filtered = useMemo(() => {
     const q = query.trim();

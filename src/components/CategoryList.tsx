@@ -1,7 +1,7 @@
 import { useState } from "react";
 import SearchKeywordsPanel from "./SearchKeywordsPanel";
 import type { Category } from "../hooks/useCategories";
-import { matchesSearchQuery, useSearch } from "../hooks/useSearch";
+import { matchesSearchQuery, useSearch, useSearchSuggestions } from "../hooks/useSearch";
 import { emojiFor } from "../lib/categories";
 
 interface Props {
@@ -9,31 +9,54 @@ interface Props {
   loading: boolean;
   onRename: (id: string, name: string) => Promise<string | null>;
   onDelete: (id: string) => Promise<void>;
+  search: {
+    query: string;
+    setQuery: (nextQuery: string) => void;
+  };
 }
 
-export default function CategoryList({ categories, loading, onRename, onDelete }: Props) {
+export default function CategoryList({ categories, loading, onRename, onDelete, search }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showKeywords, setShowKeywords] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const { query, setQuery } = search;
 
-  const { query, setQuery, filtered } = useSearch(categories, (c, q) =>
-    matchesSearchQuery(
-      c,
-      q,
-      (item, field) => {
-        switch (field) {
-          case "category":
-          case "name":
-            return item.name;
-          default:
-            return item.name;
-        }
-      },
-      (item) => item.name,
-    ),
+  const { filtered } = useSearch(
+    categories,
+    (c, q) =>
+      matchesSearchQuery(
+        c,
+        q,
+        (item, field) => {
+          switch (field) {
+            case "category":
+            case "name":
+              return item.name;
+            default:
+              return item.name;
+          }
+        },
+        (item) => item.name,
+      ),
+    query,
+    setQuery,
   );
+
+  const { suggestions } = useSearchSuggestions({
+    query,
+    categoryNames: categories.map((category) => category.name),
+    includeDefaultSuggestions: true,
+  });
+
+  const applySuggestion = (value: string) => {
+    const next = query.trim();
+    const patched = next ? `${next} ${value}` : value;
+    setQuery(patched);
+    setShowSuggestions(false);
+  };
 
   async function save(id: string) {
     const err = await onRename(id, draft);
@@ -53,14 +76,38 @@ export default function CategoryList({ categories, loading, onRename, onDelete }
           <input
             type="search"
             value={query}
-            onFocus={() => setShowKeywords(true)}
-            onBlur={() => {
-              window.setTimeout(() => setShowKeywords(false), 120);
+            onFocus={() => {
+              setShowKeywords(true);
+              setShowSuggestions(true);
             }}
-            onChange={(e) => setQuery(e.target.value)}
+            onBlur={() => {
+              window.setTimeout(() => {
+                setShowKeywords(false);
+                setShowSuggestions(false);
+              }, 120);
+            }}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setShowSuggestions(true);
+            }}
             placeholder="Search categories"
             aria-label="Search categories"
           />
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="search-suggestions" role="listbox">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion.value}
+                  type="button"
+                  className="search-suggestion"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applySuggestion(suggestion.value)}
+                >
+                  {suggestion.label}
+                </button>
+              ))}
+            </div>
+          )}
           <SearchKeywordsPanel open={showKeywords} keywords={[
             { label: "category:...", description: "Filter by category" },
             { label: "+food", description: "Include a category" },

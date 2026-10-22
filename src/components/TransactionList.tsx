@@ -11,6 +11,10 @@ interface Props {
   paymentModes: PaymentMode[];
   loading: boolean;
   onDelete: (id: string) => Promise<void>;
+  search: {
+    query: string;
+    setQuery: (nextQuery: string) => void;
+  };
 }
 
 function buildTransactionSuggestions(query: string, transactions: Transaction[], paymentModes: PaymentMode[]) {
@@ -61,58 +65,63 @@ function buildTransactionSuggestions(query: string, transactions: Transaction[],
   return Array.from(suggestions).slice(0, 8);
 }
 
-export default function TransactionList({ transactions, paymentModes, loading, onDelete }: Props) {
+export default function TransactionList({ transactions, paymentModes, loading, onDelete, search }: Props) {
   const [showHelp, setShowHelp] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const { query, setQuery } = search;
 
-  const { query, setQuery, filtered } = useSearch(transactions, (t, q) =>
-    matchesSearchQuery(
-      t,
-      q,
-      (item, field) => {
-        switch (field) {
-          case "category":
-            return item.category?.name ?? "";
-          case "price":
-          case "amount":
-            return item.amount;
-          case "mode":
-            return paymentModeName(item.paymentMode, paymentModes);
-          case "payee":
-            return item.party ?? "";
-          case "family":
-            return item.party ?? "";
-          case "date":
-            return item.date;
-          case "type":
-            return item.type;
-          default:
-            return [
-              item.party ?? "",
-              item.category?.name ?? "",
-              item.rawText ?? "",
-              paymentModeName(item.paymentMode, paymentModes),
-              formatDate(item.date),
-              String(item.amount),
-              item.type,
-            ]
-              .filter(Boolean)
-              .join(" ");
-        }
-      },
-      (item) =>
-        [
-          item.party ?? "",
-          item.category?.name ?? "",
-          item.rawText ?? "",
-          paymentModeName(item.paymentMode, paymentModes),
-          formatDate(item.date),
-          String(item.amount),
-          item.type,
-        ]
-          .filter(Boolean)
-          .join(" "),
-    ),
+  const { filtered } = useSearch(
+    transactions,
+    (t, q) =>
+      matchesSearchQuery(
+        t,
+        q,
+        (item, field) => {
+          switch (field) {
+            case "category":
+              return item.category?.name ?? "";
+            case "price":
+            case "amount":
+              return item.amount;
+            case "mode":
+              return paymentModeName(item.paymentMode, paymentModes);
+            case "payee":
+              return item.party ?? "";
+            case "family":
+              return item.party ?? "";
+            case "date":
+              return item.date;
+            case "type":
+              return item.type;
+            default:
+              return [
+                item.party ?? "",
+                item.category?.name ?? "",
+                item.rawText ?? "",
+                paymentModeName(item.paymentMode, paymentModes),
+                formatDate(item.date),
+                String(item.amount),
+                item.type,
+              ]
+                .filter(Boolean)
+                .join(" ");
+          }
+        },
+        (item) =>
+          [
+            item.party ?? "",
+            item.category?.name ?? "",
+            item.rawText ?? "",
+            paymentModeName(item.paymentMode, paymentModes),
+            formatDate(item.date),
+            String(item.amount),
+            item.type,
+          ]
+            .filter(Boolean)
+            .join(" "),
+      ),
+    query,
+    setQuery,
   );
 
   const suggestions = useMemo(() => buildTransactionSuggestions(query, transactions, paymentModes), [query, transactions, paymentModes]);

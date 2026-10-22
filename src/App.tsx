@@ -18,6 +18,7 @@ import SetNewPassword from "./components/SetNewPassword";
 import CategoryInput from "./components/CategoryInput";
 import CategoryList from "./components/CategoryList";
 import FamilyPage from "./components/FamilyPage";
+import { useGlobalSearch } from "./hooks/useSearch";
 
 type HomeContext = {
   userId: string;
@@ -30,6 +31,7 @@ type HomeContext = {
   paymentModes: PaymentMode[];
   setReviewing: (reviewing: boolean) => void;
   reviewing: boolean;
+  search: ReturnType<typeof useGlobalSearch>;
 };
 
 const useHome = () => useOutletContext<HomeContext>();
@@ -47,6 +49,7 @@ function Home({ userId, email, families, selectedFamilyId, setSelectedFamilyId }
   const txns = useTransactions(userId);
   const paymentModes = usePaymentModes(userId);
   const [reviewing, setReviewing] = useState(false);
+  const search = useGlobalSearch();
 
   return (
     <main className="page">
@@ -86,7 +89,7 @@ function Home({ userId, email, families, selectedFamilyId, setSelectedFamilyId }
       )}
       {categories.error && <p className="error">{categories.error}</p>}
       {txns.error && <p className="error">{txns.error}</p>}
-      <Outlet context={{ userId, email, families, selectedFamilyId, setSelectedFamilyId, categories, txns, paymentModes, reviewing, setReviewing } satisfies HomeContext} />
+      <Outlet context={{ userId, email, families, selectedFamilyId, setSelectedFamilyId, categories, txns, paymentModes, reviewing, setReviewing, search } satisfies HomeContext} />
     </main>
   );
 }
@@ -111,7 +114,7 @@ function DashboardPage() {
 }
 
 function TransactionsPage() {
-  const { categories, txns, paymentModes, reviewing, setReviewing, selectedFamilyId, families } = useHome();
+  const { categories, txns, paymentModes, reviewing, setReviewing, selectedFamilyId, families, search } = useHome();
   const familyMembers = selectedFamilyId ? families.filter((f) => f.id === selectedFamilyId).length : 0;
   return (
     <>
@@ -131,6 +134,7 @@ function TransactionsPage() {
           paymentModes={paymentModes}
           loading={txns.loading}
           onDelete={txns.remove}
+          search={search}
         />
       )}
       {familyMembers === 0 && selectedFamilyId && <p className="hint">This family is selected, but no family members were loaded yet.</p>}
@@ -146,7 +150,7 @@ function TransactionDetailPage() {
 }
 
 function CategoriesPage() {
-  const { categories, txns } = useHome();
+  const { categories, txns, search } = useHome();
   return (
     <>
       <CategoryInput existing={categories.categories.map((c) => c.name)} onSave={categories.addMany} />
@@ -158,6 +162,7 @@ function CategoriesPage() {
           await categories.remove(id);
           await txns.refresh();
         }}
+        search={search}
       />
     </>
   );
