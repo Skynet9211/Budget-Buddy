@@ -119,17 +119,39 @@ export interface Transaction {
   /** A `payment_modes` id. */
   paymentMode: string;
   createdAt: string;
+  /** Original note. Loaded on the detail page; list fetches omit it. */
+  rawText?: string | null;
 }
+
+const TXN_SELECT =
+  "id,type,payment_mode,created_at,category:categories!category_id(id,name),date:transaction_dates(txn_date),amount:transaction_amounts(amount,currency),party:transaction_parties(name)";
 
 // PostgREST returns one-to-one embeds as an object, but be tolerant of an array.
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null);
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTransaction(r: any, includeRawText = false): Transaction {
+  const date = one<{ txn_date: string }>(r.date);
+  const amount = one<{ amount: number | string; currency: string }>(r.amount);
+  const txn: Transaction = {
+    id: r.id,
+    type: r.type,
+    date: date?.txn_date ?? r.created_at.slice(0, 10),
+    amount: Number(amount?.amount ?? 0),
+    currency: amount?.currency ?? "INR",
+    party: one<{ name: string }>(r.party)?.name ?? null,
+    category: one<{ id: string; name: string }>(r.category),
+    paymentMode: r.payment_mode ?? DEFAULT_PAYMENT_MODE,
+    createdAt: r.created_at,
+  };
+  if (includeRawText) txn.rawText = r.raw_text ?? null;
+  return txn;
+}
+
 export async function fetchTransactions(): Promise<Transaction[]> {
   const { data, error } = await supabase
     .from("transactions")
-    .select(
-      "id,type,payment_mode,created_at,category:categories!category_id(id,name),date:transaction_dates(txn_date),amount:transaction_amounts(amount,currency),party:transaction_parties(name)",
-    )
+    .select(TXN_SELECT)
     .order("created_at", { ascending: false })
     .limit(200);
   if (error) throw new Error(error.message);
@@ -137,22 +159,20 @@ export async function fetchTransactions(): Promise<Transaction[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (data ?? []) as any[];
   return rows
-    .map((r): Transaction => {
-      const date = one<{ txn_date: string }>(r.date);
-      const amount = one<{ amount: number | string; currency: string }>(r.amount);
-      return {
-        id: r.id,
-        type: r.type,
-        date: date?.txn_date ?? r.created_at.slice(0, 10),
-        amount: Number(amount?.amount ?? 0),
-        currency: amount?.currency ?? "INR",
-        party: one<{ name: string }>(r.party)?.name ?? null,
-        category: one<{ id: string; name: string }>(r.category),
-        paymentMode: r.payment_mode ?? DEFAULT_PAYMENT_MODE,
-        createdAt: r.created_at,
-      };
-    })
+    .map((r) => mapTransaction(r))
     .sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)));
+}
+
+/** One of the current user's transactions, or null if it isn't theirs / doesn't exist. */
+export async function fetchTransaction(id: string): Promise<Transaction | null> {
+  const { data, error } = await supabase
+    .from("transactions")
+    .select(`${TXN_SELECT},raw_text`)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return mapTransaction(data, true);
 }
 
 const SPENDING_PAGE = 1000;

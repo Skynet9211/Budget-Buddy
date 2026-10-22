@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { emojiFor } from "../lib/categories";
 import { paymentModeName } from "../lib/paymentModes";
 import { formatDate, formatMoney, type Transaction } from "../lib/transactions";
@@ -39,18 +40,20 @@ export default function TransactionList({ transactions, paymentModes, loading, o
       <ul className="cat-list">
         {transactions.map((t) => (
           <li key={t.id} className="cat txn">
-            <span className="emoji">{emojiFor(t.category?.name ?? t.party ?? "")}</span>
-            <div className="txn-main">
-              <span className="name">{t.party ?? t.category?.name ?? "Transaction"}</span>
-              <span className="txn-sub">
-                {t.category ? `${t.category.name} · ` : ""}
-                {paymentModeName(t.paymentMode, paymentModes)} · {formatDate(t.date)}
-              </span>
-            </div>
-            <strong className={`amount ${t.type}`}>
-              {t.type === "debit" ? "−" : "+"}
-              {formatMoney(t.amount, t.currency)}
-            </strong>
+            <Link to={`/transactions/${t.id}`} className="txn-link">
+              <span className="emoji">{emojiFor(t.category?.name ?? t.party ?? "")}</span>
+              <div className="txn-main">
+                <span className="name">{t.party ?? t.category?.name ?? "Transaction"}</span>
+                <span className="txn-sub">
+                  {t.category ? `${t.category.name} · ` : ""}
+                  {paymentModeName(t.paymentMode, paymentModes)} · {formatDate(t.date)}
+                </span>
+              </div>
+              <strong className={`amount ${t.type}`}>
+                {t.type === "debit" ? "−" : "+"}
+                {formatMoney(t.amount, t.currency)}
+              </strong>
+            </Link>
             <button
               className="icon-btn danger"
               aria-label="Delete transaction"

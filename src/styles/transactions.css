@@ -172,6 +172,67 @@ input[aria-invalid="true"] {
   white-space: nowrap;
   font-size: 0.95rem;
 }
+.txn-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: inherit;
+  text-decoration: none;
+}
+.txn-link:hover .name,
+.txn-link:focus-visible .name {
+  color: var(--accent-dark);
+}
+.txn-link:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.txn-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+}
+.txn-detail-head a.icon-btn {
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+}
+.txn-detail-head h2 {
+  margin: 0;
+}
+.txn-detail-fields {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.txn-detail-row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.txn-detail-row:last-child {
+  border-bottom: 0;
+}
+.txn-detail-row dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.txn-detail-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.txn-detail-id {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
 
 /* Several transactions in one review */
 .txn-draft {

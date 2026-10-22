@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useOutletContext } from "react-router-dom";
+import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useOutletContext, useParams } from "react-router-dom";
 import { useSession } from "./hooks/useSession";
 import { useCategories } from "./hooks/useCategories";
 import { useTransactions } from "./hooks/useTransactions";
@@ -11,6 +11,7 @@ import { APPEARANCE_PATH, DEFAULT_PATH, useBackgroundLocation } from "./hooks/us
 import Dashboard from "./components/Dashboard";
 import TransactionInput from "./components/TransactionInput";
 import TransactionList from "./components/TransactionList";
+import TransactionDetail from "./components/TransactionDetail";
 import { supabase } from "./lib/supabase";
 import AuthScreen from "./components/AuthScreen";
 import SetNewPassword from "./components/SetNewPassword";
@@ -115,6 +116,13 @@ function TransactionsPage() {
   );
 }
 
+function TransactionDetailPage() {
+  const { transactionId } = useParams();
+  const { paymentModes } = useHome();
+  if (!transactionId) return <Navigate to="/transactions" replace />;
+  return <TransactionDetail transactionId={transactionId} paymentModes={paymentModes} />;
+}
+
 function CategoriesPage() {
   const { categories, txns } = useHome();
   return (
@@ -145,6 +153,7 @@ function AppRoutes({ userId, email }: { userId: string; email?: string }) {
       <Route element={<Home userId={userId} email={email} />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/transactions/:transactionId" element={<TransactionDetailPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
       </Route>
       <Route path="*" element={<Navigate to={DEFAULT_PATH} replace />} />
