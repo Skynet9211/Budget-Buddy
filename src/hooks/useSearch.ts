@@ -115,6 +115,104 @@ export function matchesSearchQuery<T>(
   return true;
 }
 
+export type SearchSuggestion = {
+  value: string;
+  label: string;
+};
+
+export function useSearchSuggestions(options: {
+  query: string;
+  categoryNames?: string[];
+  paymentModes?: string[];
+  payees?: string[];
+  familyMembers?: string[];
+  types?: string[];
+  includeDefaultSuggestions?: boolean;
+}) {
+  const {
+    query,
+    categoryNames = [],
+    paymentModes = [],
+    payees = [],
+    familyMembers = [],
+    types = ["debit", "credit"],
+    includeDefaultSuggestions = true,
+  } = options;
+
+  const suggestions = useMemo<SearchSuggestion[]>(() => {
+    const trimmed = query.trim();
+    const lower = trimmed.toLowerCase();
+    const results: SearchSuggestion[] = [];
+    const seen = new Set<string>();
+
+    const push = (value: string) => {
+      if (!value) return;
+      const normalized = value.trim();
+      if (!normalized) return;
+      if (seen.has(normalized)) return;
+      seen.add(normalized);
+      results.push({ value: normalized, label: normalized });
+    };
+
+    if (!trimmed) {
+      if (includeDefaultSuggestions) {
+        [
+          "category:food",
+          "price:>100",
+          "mode:card",
+          "date:2024-09",
+          "payee:amazon",
+          "family:alice",
+          "type:debit",
+        ].forEach(push);
+      }
+      return results;
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+      push(`price:${trimmed}`);
+      push(`price:>${trimmed}`);
+      push(`price:<${trimmed}`);
+      return results.slice(0, 5);
+    }
+
+    const fieldMatches = [
+      ...categoryNames.filter((name) => name.toLowerCase().includes(lower)).map((name) => `category:${name}`),
+      ...paymentModes.filter((name) => name.toLowerCase().includes(lower)).map((name) => `mode:${name}`),
+      ...payees.filter((name) => name.toLowerCase().includes(lower)).map((name) => `payee:${name}`),
+      ...familyMembers.filter((name) => name.toLowerCase().includes(lower)).map((name) => `family:${name}`),
+      ...types.filter((type) => type.toLowerCase().includes(lower)).map((type) => `type:${type}`),
+    ];
+
+    fieldMatches.forEach(push);
+
+    if (!trimmed.includes(":")) {
+      push(`category:${trimmed}`);
+      push(`price:${trimmed}`);
+      push(`price:>${trimmed}`);
+      push(`price:<${trimmed}`);
+      push(`payee:${trimmed}`);
+      push(`family:${trimmed}`);
+      push(`mode:${trimmed}`);
+      push(`type:${trimmed}`);
+    }
+
+    const month = new Date().getMonth() + 1;
+    push(`date:${new Date().getFullYear()}-${String(month).padStart(2, "0")}`);
+
+    return results.slice(0, 8);
+  }, [categoryNames, familyMembers, includeDefaultSuggestions, paymentModes, payees, query, types]);
+
+  const appendSuggestion = (currentQuery: string, suggestion: string) => {
+    const next = currentQuery.trim();
+    if (!next) return suggestion;
+    if (next.endsWith(";")) return `${next} ${suggestion}`;
+    return `${next}; ${suggestion}`;
+  };
+
+  return { suggestions, appendSuggestion };
+}
+
 export function useSearch<T>(items: T[], matcher: (item: T, query: string) => boolean) {
   const [query, setQuery] = useState("");
 

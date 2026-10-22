@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import SearchKeywordsPanel from "./SearchKeywordsPanel";
 import { emojiFor } from "../lib/categories";
 import { paymentModeName } from "../lib/paymentModes";
 import { formatDate, formatMoney, type Transaction } from "../lib/transactions";
@@ -14,9 +13,57 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
 }
 
+function buildTransactionSuggestions(query: string, transactions: Transaction[], paymentModes: PaymentMode[]) {
+  const trimmed = query.trim();
+  const items = [...new Set(transactions.map((t) => t.category?.name).filter(Boolean) as string[])];
+  const modes = paymentModes.map((m) => m.name);
+  const payees = [...new Set(transactions.map((t) => t.party).filter(Boolean) as string[])];
+  const types = ["debit", "credit"];
+  const suggestions = new Set<string>();
+
+  if (!trimmed) {
+    const seed = ["category:food", "price:>100", "mode:card", "date:2024-09", "payee:amazon", "family:alice", "type:debit"];
+    seed.forEach((value) => suggestions.add(value));
+    return Array.from(suggestions);
+  }
+
+  const lower = trimmed.toLowerCase();
+
+  if (/^\d+$/.test(trimmed)) {
+    suggestions.add(`price:${trimmed}`);
+    suggestions.add(`price:>${trimmed}`);
+    suggestions.add(`price:<${trimmed}`);
+    return Array.from(suggestions).slice(0, 5);
+  }
+
+  const categoryMatches = items.filter((name) => name.toLowerCase().includes(lower));
+  categoryMatches.slice(0, 4).forEach((name) => suggestions.add(`category:${name}`));
+
+  if (!trimmed.includes(":")) {
+    suggestions.add(`category:${trimmed}`);
+    suggestions.add(`price:${trimmed}`);
+    suggestions.add(`price:>${trimmed}`);
+    suggestions.add(`price:<${trimmed}`);
+  }
+
+  const modeMatches = modes.filter((name) => name.toLowerCase().includes(lower));
+  modeMatches.slice(0, 4).forEach((name) => suggestions.add(`mode:${name.toLowerCase()}`));
+
+  const payeeMatches = payees.filter((name) => name.toLowerCase().includes(lower));
+  payeeMatches.slice(0, 4).forEach((name) => suggestions.add(`payee:${name}`));
+
+  types.filter((type) => type.includes(lower)).forEach((type) => suggestions.add(`type:${type}`));
+
+  if (!trimmed.includes(":")) {
+    suggestions.add(`date:${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
+  }
+
+  return Array.from(suggestions).slice(0, 8);
+}
+
 export default function TransactionList({ transactions, paymentModes, loading, onDelete }: Props) {
   const [showHelp, setShowHelp] = useState(false);
-  const [showKeywords, setShowKeywords] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const { query, setQuery, filtered } = useSearch(transactions, (t, q) =>
     matchesSearchQuery(
@@ -68,6 +115,15 @@ export default function TransactionList({ transactions, paymentModes, loading, o
     ),
   );
 
+  const suggestions = useMemo(() => buildTransactionSuggestions(query, transactions, paymentModes), [query, transactions, paymentModes]);
+
+  const applySuggestion = (value: string) => {
+    const next = query.trim();
+    const suffix = next && !next.endsWith(";") ? `; ${value}` : value;
+    setQuery(next ? `${next} ${suffix}` : value);
+    setShowSuggestions(false);
+  };
+
   const spent = filtered.filter((t) => t.type === "debit").reduce((s, t) => s + t.amount, 0);
   const received = filtered.filter((t) => t.type === "credit").reduce((s, t) => s + t.amount, 0);
 
@@ -80,15 +136,21 @@ export default function TransactionList({ transactions, paymentModes, loading, o
           <input
             type="search"
             value={query}
-            onFocus={() => setShowKeywords(true)}
-            onBlur={() => {
-              window.setTimeout(() => setShowKeywords(false), 120);
-            }}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => window.setTimeout(() => setShowSuggestions(false), 120)}
             placeholder="Search transactions"
             aria-label="Search transactions"
           />
-          <SearchKeywordsPanel open={showKeywords} />
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="search-suggestions" role="listbox">
+              {suggestions.map((value) => (
+                <button key={value} type="button" className="search-suggestion" onMouseDown={(e) => e.preventDefault()} onClick={() => applySuggestion(value)}>
+                  {value}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <button type="button" className="help-btn" onClick={() => setShowHelp(true)} aria-label="Open search help">
           ?
