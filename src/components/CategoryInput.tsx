@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { canRecord, startRecording, type Recording } from "../lib/recorder";
 import { extractFromAudio, extractFromText } from "../lib/extractCategories";
 import { normalizeName } from "../lib/categories";
+import RecordingInput from "./RecordingInput";
 
 interface Props {
   existing: string[];
@@ -102,31 +103,20 @@ export default function CategoryInput({ existing, onSave }: Props) {
         Type or tap the mic and say things like <em>“groceries, petrol and eating out”</em>.
       </p>
 
-      <form className="input-row" onSubmit={submitText}>
-        <input
-          type="text"
+      {!suggestions && (
+        <RecordingInput
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={setText}
           placeholder="e.g. Groceries, Rent, Netflix"
+          ariaLabel="Category names"
+          onSubmit={submitText}
           disabled={status !== "idle"}
-          aria-label="Category names"
+          micAvailable={micAvailable}
+          micActive={status === "recording"}
+          onMicClick={toggleMic}
+          micDisabled={status === "thinking"}
         />
-        <button className="btn primary" disabled={!text.trim() || status !== "idle"}>
-          Add
-        </button>
-        {micAvailable && (
-          <button
-            type="button"
-            className={`mic ${status === "recording" ? "active" : ""}`}
-            onClick={toggleMic}
-            disabled={status === "thinking"}
-            aria-label={status === "recording" ? "Stop recording" : "Start voice input"}
-            title={status === "recording" ? "Tap to stop" : "Tap to speak"}
-          >
-            {status === "recording" ? "■" : "🎤"}
-          </button>
-        )}
-      </form>
+      )}
 
       {status === "recording" && <p className="info">Listening... tap ■ when you're done.</p>}
       {status === "thinking" && <p className="info">Working on it...</p>}

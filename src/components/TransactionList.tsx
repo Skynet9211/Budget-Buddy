@@ -3,6 +3,7 @@ import { emojiFor } from "../lib/categories";
 import { paymentModeName } from "../lib/paymentModes";
 import { formatDate, formatMoney, type Transaction } from "../lib/transactions";
 import type { PaymentMode } from "../types";
+import { useSearch } from "../hooks/useSearch";
 
 interface Props {
   transactions: Transaction[];
@@ -12,14 +13,39 @@ interface Props {
 }
 
 export default function TransactionList({ transactions, paymentModes, loading, onDelete }: Props) {
-  const spent = transactions.filter((t) => t.type === "debit").reduce((s, t) => s + t.amount, 0);
-  const received = transactions.filter((t) => t.type === "credit").reduce((s, t) => s + t.amount, 0);
+  const { query, setQuery, filtered } = useSearch(transactions, (t, q) => {
+    const haystack = [
+      t.party,
+      t.category?.name,
+      t.rawText,
+      paymentModeName(t.paymentMode, paymentModes),
+      formatDate(t.date),
+      String(t.amount),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(q);
+  });
+
+  const spent = filtered.filter((t) => t.type === "debit").reduce((s, t) => s + t.amount, 0);
+  const received = filtered.filter((t) => t.type === "credit").reduce((s, t) => s + t.amount, 0);
 
   return (
     <section className="card">
-      <h2>Transactions {transactions.length > 0 && <span className="count">{transactions.length}</span>}</h2>
+      <h2>Transactions {filtered.length > 0 && <span className="count">{filtered.length}</span>}</h2>
 
-      {transactions.length > 0 && (
+      <div className="list-filter">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search transactions"
+          aria-label="Search transactions"
+        />
+      </div>
+
+      {filtered.length > 0 && (
         <div className="totals">
           <div>
             <span className="label">Spent</span>
@@ -33,12 +59,12 @@ export default function TransactionList({ transactions, paymentModes, loading, o
       )}
 
       {loading && <p className="hint">Loading...</p>}
-      {!loading && transactions.length === 0 && (
-        <p className="empty">No transactions yet. Say or type your first one above ✨</p>
+      {!loading && filtered.length === 0 && (
+        <p className="empty">{query ? "No matching transactions found" : "No transactions yet. Say or type your first one above ✨"}</p>
       )}
 
       <ul className="cat-list">
-        {transactions.map((t) => (
+        {filtered.map((t) => (
           <li key={t.id} className="cat txn">
             <Link to={`/transactions/${t.id}`} className="txn-link">
               <span className="emoji">{emojiFor(t.category?.name ?? t.party ?? "")}</span>
