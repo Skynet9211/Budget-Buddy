@@ -18,6 +18,9 @@ import type { PaymentMode } from "../types";
 interface Props {
   categories: Category[];
   paymentModes: PaymentMode[];
+  familyId?: string | null;
+  familyMembers?: Array<{ id: string; name?: string; user_id?: string; role?: string }>;
+
   onSaved: () => Promise<void> | void;
   /** Called with true while there is parsed data waiting to be edited/saved, false otherwise. */
   onReviewChange?: (active: boolean) => void;
@@ -40,6 +43,8 @@ interface Draft {
   newCategory: string;
   /** Additional existing categories the transaction also belongs to. */
   extraIds: string[];
+  shareWithFamily: boolean;
+  familyMemberName: string;
 }
 
 interface Review {
@@ -61,6 +66,8 @@ function toReview(res: ParseResult): Review {
       categoryChoice: p.category ? p.category.id : p.new_category ? NEW : NONE,
       newCategory: p.new_category ?? "",
       extraIds: [],
+      shareWithFamily: false,
+      familyMemberName: "",
     })),
   };
 }
@@ -72,7 +79,7 @@ const isValid = (d: Draft) =>
   /^\d{4}-\d{2}-\d{2}$/.test(d.date) &&
   !(d.categoryChoice === NEW && !d.newCategory.trim());
 
-export default function TransactionInput({ categories, paymentModes, onSaved, onReviewChange }: Props) {
+export default function TransactionInput({ categories, paymentModes, familyId, familyMembers = [], onSaved, onReviewChange }: Props) {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -194,6 +201,9 @@ export default function TransactionInput({ categories, paymentModes, onSaved, on
             newCategory: d.categoryChoice === NEW ? d.newCategory.trim() : null,
             rawText: review.rawText || null,
             paymentMode: d.paymentMode,
+            familyId,
+            shareWithFamily: d.shareWithFamily,
+            familyMemberName: d.familyMemberName.trim() || null,
           };
         }),
       );
@@ -378,6 +388,32 @@ export default function TransactionInput({ categories, paymentModes, onSaved, on
                         })}
                     </div>
                   </div>
+                )}
+                <label className="wide">
+                  Share with family
+                  <select
+                    value={d.shareWithFamily ? "yes" : "no"}
+                    onChange={(e) => updateAt(i, { shareWithFamily: e.target.value === "yes" })}
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </label>
+                {d.shareWithFamily && (
+                  <label className="wide">
+                    Family member
+                    <select
+                      value={d.familyMemberName}
+                      onChange={(e) => updateAt(i, { familyMemberName: e.target.value })}
+                    >
+                      <option value="">Select a member</option>
+                      {familyMembers.map((member) => (
+                        <option key={member.id} value={member.name}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 )}
               </div>
               {!(parseAmount(d.amount) > 0) && <p className="error">Enter an amount greater than 0.</p>}

@@ -85,6 +85,9 @@ export interface NewTransaction {
   rawText: string | null;
   /** A `payment_modes` id. Defaults to UPI. */
   paymentMode?: string;
+  familyId?: string | null;
+  shareWithFamily?: boolean;
+  familyMemberName?: string | null;
 }
 
 /**
@@ -102,6 +105,9 @@ export async function saveTransactions(items: NewTransaction[]): Promise<string[
       new_category: t.categoryId ? null : t.newCategory,
       raw_text: t.rawText,
       payment_mode: t.paymentMode || DEFAULT_PAYMENT_MODE,
+      family_id: t.familyId ?? null,
+      share_with_family: !!t.shareWithFamily,
+      family_member_name: t.familyMemberName ?? null,
     })),
   });
   if (error) throw new Error(error.message);
