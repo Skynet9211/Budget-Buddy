@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import SearchKeywordsPanel from "./SearchKeywordsPanel";
 import { emojiFor } from "../lib/categories";
 import { paymentModeName } from "../lib/paymentModes";
 import { formatDate, formatMoney, type Transaction } from "../lib/transactions";
@@ -15,6 +16,7 @@ interface Props {
 
 export default function TransactionList({ transactions, paymentModes, loading, onDelete }: Props) {
   const [showHelp, setShowHelp] = useState(false);
+  const [showKeywords, setShowKeywords] = useState(false);
 
   const { query, setQuery, filtered } = useSearch(transactions, (t, q) =>
     matchesSearchQuery(
@@ -78,10 +80,15 @@ export default function TransactionList({ transactions, paymentModes, loading, o
           <input
             type="search"
             value={query}
+            onFocus={() => setShowKeywords(true)}
+            onBlur={() => {
+              window.setTimeout(() => setShowKeywords(false), 120);
+            }}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search transactions"
             aria-label="Search transactions"
           />
+          <SearchKeywordsPanel open={showKeywords} />
         </div>
         <button type="button" className="help-btn" onClick={() => setShowHelp(true)} aria-label="Open search help">
           ?

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SearchKeywordsPanel from "./SearchKeywordsPanel";
 import type { Category } from "../hooks/useCategories";
 import { matchesSearchQuery, useSearch } from "../hooks/useSearch";
 import { emojiFor } from "../lib/categories";
@@ -15,6 +16,7 @@ export default function CategoryList({ categories, loading, onRename, onDelete }
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [showKeywords, setShowKeywords] = useState(false);
 
   const { query, setQuery, filtered } = useSearch(categories, (c, q) =>
     matchesSearchQuery(
@@ -51,10 +53,20 @@ export default function CategoryList({ categories, loading, onRename, onDelete }
           <input
             type="search"
             value={query}
+            onFocus={() => setShowKeywords(true)}
+            onBlur={() => {
+              window.setTimeout(() => setShowKeywords(false), 120);
+            }}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search categories"
             aria-label="Search categories"
           />
+          <SearchKeywordsPanel open={showKeywords} keywords={[
+            { label: "category:...", description: "Filter by category" },
+            { label: "+food", description: "Include a category" },
+            { label: "-coffee", description: "Exclude a category" },
+            { label: "food; +debit", description: "Combine rules" },
+          ]} />
         </div>
         <button type="button" className="help-btn" onClick={() => setShowHelp(true)} aria-label="Open category search help">
           ?
