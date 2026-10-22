@@ -33,3 +33,30 @@ export interface PaymentFlow {
 export type MultiCategoryMode = "split" | "full";
 
 export type Granularity = "weekly" | "monthly";
+
+export interface Family {
+  id: string;
+  name: string;
+  owner_user_id: string;
+  created_at: string;
+}
+
+export interface FamilyMember {
+  id: string;
+  family_id: string;
+  user_id: string;
+  role: "owner" | "member";
+  created_at: string;
+  profile?: { email?: string | null } | null;
+}
+
+export interface FamilyInvitation {
+  id: string;
+  family_id: string;
+  email: string;
+  invited_by: string;
+  status: "pending" | "accepted" | "declined" | "expired";
+  token: string;
+  created_at: string;
+  updated_at: string;
+}

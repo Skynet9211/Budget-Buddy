@@ -6,7 +6,7 @@ import { useTransactions } from "./hooks/useTransactions";
 import { useSpending } from "./hooks/useSpending";
 import { usePaymentFlows } from "./hooks/usePaymentFlows";
 import { usePaymentModes } from "./hooks/usePaymentModes";
-import type { PaymentMode } from "./types";
+import type { Family, PaymentMode } from "./types";
 import { APPEARANCE_PATH, DEFAULT_PATH, useBackgroundLocation } from "./hooks/useAppearanceRoute";
 import Dashboard from "./components/Dashboard";
 import TransactionInput from "./components/TransactionInput";
@@ -17,9 +17,14 @@ import AuthScreen from "./components/AuthScreen";
 import SetNewPassword from "./components/SetNewPassword";
 import CategoryInput from "./components/CategoryInput";
 import CategoryList from "./components/CategoryList";
+import FamilyPage from "./components/FamilyPage";
 
 type HomeContext = {
   userId: string;
+  email?: string;
+  families: Family[];
+  selectedFamilyId: string | null;
+  setSelectedFamilyId: (familyId: string | null) => void;
   categories: ReturnType<typeof useCategories>;
   txns: ReturnType<typeof useTransactions>;
   paymentModes: PaymentMode[];
@@ -33,15 +38,14 @@ const TABS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/transactions", label: "Transactions" },
   { to: "/categories", label: "Categories" },
+  { to: "/family", label: "Family" },
 ];
 
 /** Shared layout: header, section tabs and the data the section pages use. */
-function Home({ userId, email }: { userId: string; email?: string }) {
+function Home({ userId, email, families, selectedFamilyId, setSelectedFamilyId }: { userId: string; email?: string; families: Family[]; selectedFamilyId: string | null; setSelectedFamilyId: (familyId: string | null) => void }) {
   const categories = useCategories(userId);
   const txns = useTransactions(userId);
   const paymentModes = usePaymentModes(userId);
-  // True while parsed transactions are waiting to be edited and saved. The lists and tabs are
-  // hidden until then, so the user finishes (or cancels) the review first.
   const [reviewing, setReviewing] = useState(false);
 
   return (
@@ -55,6 +59,22 @@ function Home({ userId, email }: { userId: string; email?: string }) {
           Sign out
         </button>
       </header>
+
+      {families.length > 0 && (
+        <div className="card family-switcher">
+          <label>
+            Family
+            <select value={selectedFamilyId ?? ""} onChange={(e) => setSelectedFamilyId(e.target.value || null)}>
+              {families.map((family) => (
+                <option key={family.id} value={family.id}>
+                  {family.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
       {!reviewing && (
         <nav className="tabs" aria-label="Sections">
           {TABS.map((t) => (
@@ -66,14 +86,13 @@ function Home({ userId, email }: { userId: string; email?: string }) {
       )}
       {categories.error && <p className="error">{categories.error}</p>}
       {txns.error && <p className="error">{txns.error}</p>}
-      <Outlet context={{ userId, categories, txns, paymentModes, reviewing, setReviewing } satisfies HomeContext} />
+      <Outlet context={{ userId, email, families, selectedFamilyId, setSelectedFamilyId, categories, txns, paymentModes, reviewing, setReviewing } satisfies HomeContext} />
     </main>
   );
 }
 
 function DashboardPage() {
   const { userId, paymentModes } = useHome();
-  // Mounted only while the Dashboard route is shown, so it reloads each time you return to it.
   const spending = useSpending(userId, true);
   const paymentFlows = usePaymentFlows(userId, true);
   return (
@@ -92,15 +111,17 @@ function DashboardPage() {
 }
 
 function TransactionsPage() {
-  const { categories, txns, paymentModes, reviewing, setReviewing } = useHome();
+  const { categories, txns, paymentModes, reviewing, setReviewing, selectedFamilyId, families } = useHome();
+  const familyMembers = selectedFamilyId ? families.filter((f) => f.id === selectedFamilyId).length : 0;
   return (
     <>
       <TransactionInput
         categories={categories.categories}
         paymentModes={paymentModes}
+        familyId={selectedFamilyId}
+        familyMembers={[]}
         onReviewChange={setReviewing}
         onSaved={async () => {
-          // A transaction can create a new category, so refresh both lists.
           await Promise.all([txns.refresh(), categories.reload()]);
         }}
       />
@@ -112,6 +133,7 @@ function TransactionsPage() {
           onDelete={txns.remove}
         />
       )}
+      {familyMembers === 0 && selectedFamilyId && <p className="hint">This family is selected, but no family members were loaded yet.</p>}
     </>
   );
 }
@@ -134,27 +156,26 @@ function CategoriesPage() {
         onRename={categories.rename}
         onDelete={async (id) => {
           await categories.remove(id);
-          await txns.refresh(); // transactions in a deleted category become uncategorised
+          await txns.refresh();
         }}
       />
     </>
   );
 }
 
-function AppRoutes({ userId, email }: { userId: string; email?: string }) {
+function AppRoutes({ userId, email, families, selectedFamilyId, setSelectedFamilyId, refreshFamilies }: { userId: string; email?: string; families: Family[]; selectedFamilyId: string | null; setSelectedFamilyId: (familyId: string | null) => void; refreshFamilies: () => Promise<void> | void; }) {
   const location = useLocation();
   const background = useBackgroundLocation();
-  // The Appearance page is drawn over the app, so keep rendering the page underneath it (this keeps
-  // an in-progress transaction review intact). Opened directly, fall back to the default page.
   const pageLocation = location.pathname === APPEARANCE_PATH ? (background ?? { pathname: DEFAULT_PATH }) : location;
 
   return (
     <Routes location={pageLocation}>
-      <Route element={<Home userId={userId} email={email} />}>
+      <Route element={<Home userId={userId} email={email} families={families} selectedFamilyId={selectedFamilyId} setSelectedFamilyId={setSelectedFamilyId} />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/transactions/:transactionId" element={<TransactionDetailPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
+        <Route path="/family" element={<FamilyPage userId={userId} email={email ?? ""} families={families} selectedFamilyId={selectedFamilyId} setSelectedFamilyId={setSelectedFamilyId} onRefreshFamilies={refreshFamilies} />} />
       </Route>
       <Route path="*" element={<Navigate to={DEFAULT_PATH} replace />} />
     </Routes>
@@ -162,9 +183,9 @@ function AppRoutes({ userId, email }: { userId: string; email?: string }) {
 }
 
 export default function App() {
-  const { session, loading, recovery, finishRecovery } = useSession();
+  const { session, loading, recovery, finishRecovery, families, selectedFamilyId, setSelectedFamilyId, refreshFamilies } = useSession();
   if (loading) return <main className="page"><p className="hint">Loading...</p></main>;
   if (!session) return <AuthScreen />;
   if (recovery) return <SetNewPassword onDone={finishRecovery} />;
-  return <AppRoutes userId={session.user.id} email={session.user.email} />;
+  return <AppRoutes userId={session.user.id} email={session.user.email} families={families} selectedFamilyId={selectedFamilyId} setSelectedFamilyId={setSelectedFamilyId} refreshFamilies={refreshFamilies} />;
 }
