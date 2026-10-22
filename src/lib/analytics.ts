@@ -1,4 +1,4 @@
-import type { Expense, Granularity, MultiCategoryMode } from "../types";
+import type { Expense, Granularity, MultiCategoryMode, PaymentFlow, PaymentMode } from "../types";
 import {
   addDays,
   formatMonthYear,
@@ -95,6 +95,46 @@ export function timeSeries(
     }
   }
   return buckets;
+}
+
+export function filterFlowsByRange(flows: PaymentFlow[], from: string, to: string): PaymentFlow[] {
+  return flows.filter((f) => f.date >= from && f.date <= to);
+}
+
+export interface PaymentModeTotal {
+  id: string;
+  name: string;
+  /** Money out through this mode. */
+  debit: number;
+  /** Money in through this mode. */
+  credit: number;
+  count: number;
+}
+
+/**
+ * Money out (debit) and money in (credit) per mode of payment, busiest mode first. Only modes that
+ * have transactions are returned. A mode missing from `modes` (e.g. removed later) is still listed,
+ * under its id.
+ */
+export function paymentModeTotals(flows: PaymentFlow[], modes: PaymentMode[]): PaymentModeTotal[] {
+  const names = new Map(modes.map((m) => [m.id, m.name]));
+  const map = new Map<string, PaymentModeTotal>();
+  for (const f of flows) {
+    const entry = map.get(f.paymentMode) ?? {
+      id: f.paymentMode,
+      name: names.get(f.paymentMode) ?? f.paymentMode,
+      debit: 0,
+      credit: 0,
+      count: 0,
+    };
+    if (f.type === "credit") entry.credit += f.amount;
+    else entry.debit += f.amount;
+    entry.count += 1;
+    map.set(f.paymentMode, entry);
+  }
+  return [...map.values()]
+    .map((m) => ({ ...m, debit: round2(m.debit), credit: round2(m.credit) }))
+    .sort((a, b) => b.debit + b.credit - (a.debit + a.credit) || a.name.localeCompare(b.name));
 }
 
 /** The earliest expense date, or null if there are none. */

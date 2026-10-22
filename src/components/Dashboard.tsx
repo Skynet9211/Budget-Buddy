@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import {
   categoryTotals,
   filterByRange,
+  filterFlowsByRange,
   firstDate,
+  paymentModeTotals,
   timeSeries,
   totalSpend,
 } from "../lib/analytics";
@@ -10,9 +12,10 @@ import { daysInclusive, formatFullDate } from "../lib/dates";
 import { useTheme } from "../hooks/useTheme";
 import { colorMap, formatMoney, formatMoneyShort } from "../lib/format";
 import { chartColors, getPalette } from "../lib/themes";
-import type { Expense, Granularity, MultiCategoryMode } from "../types";
+import type { Expense, Granularity, MultiCategoryMode, PaymentFlow, PaymentMode } from "../types";
 import CategoryChart from "./dashboard/CategoryChart";
 import DateFilter, { defaultRange, type DateRange } from "./dashboard/DateFilter";
+import PaymentModeChart from "./dashboard/PaymentModeChart";
 import SpendOverTime, { GranularityToggle } from "./dashboard/SpendOverTime";
 import WordCloud from "./dashboard/WordCloud";
 
@@ -20,13 +23,18 @@ interface Props {
   /** Money-out only. An expense may list several categories. */
   expenses: Expense[];
   loading: boolean;
+  /** Money in AND out, each with its mode of payment. */
+  flows: PaymentFlow[];
+  paymentModes: PaymentMode[];
+  flowsLoading: boolean;
 }
 
 /**
- * Landing dashboard: total spend, spend by category (donut + word cloud) and spend over time
- * (weekly / monthly). Defaults to the last month; "All time" starts on 1 Jan 2000.
+ * Landing dashboard: total spend, spend by category (donut + word cloud), debited / credited per
+ * mode of payment, and spend over time (weekly / monthly). Defaults to the last month; "All time"
+ * starts on 1 Jan 2000.
  */
-export default function Dashboard({ expenses, loading }: Props) {
+export default function Dashboard({ expenses, loading, flows, paymentModes, flowsLoading }: Props) {
   const [range, setRange] = useState<DateRange>(defaultRange);
   const [granularity, setGranularity] = useState<Granularity>("weekly");
   const [mode, setMode] = useState<MultiCategoryMode>("split");
@@ -34,6 +42,10 @@ export default function Dashboard({ expenses, loading }: Props) {
   const filtered = useMemo(() => filterByRange(expenses, range.from, range.to), [expenses, range]);
   const total = useMemo(() => totalSpend(filtered), [filtered]);
   const byCategory = useMemo(() => categoryTotals(filtered, mode), [filtered, mode]);
+  const byMode = useMemo(
+    () => paymentModeTotals(filterFlowsByRange(flows, range.from, range.to), paymentModes),
+    [flows, range, paymentModes],
+  );
   const { palette, resolved } = useTheme();
   const colors = useMemo(
     () => colorMap(byCategory.map((c) => c.name), chartColors(getPalette(palette), resolved)),
@@ -104,6 +116,14 @@ export default function Dashboard({ expenses, loading }: Props) {
               : "Transactions in several categories count in full in each, so categories add up to more than the total."}
           </p>
         )}
+      </section>
+
+      <section className="card">
+        <div className="card-head">
+          <h2>By mode of payment</h2>
+        </div>
+        {flowsLoading ? <p className="hint">Loading...</p> : <PaymentModeChart data={byMode} />}
+        <p className="hint">Money going out (debited) and coming in (credited) through each mode.</p>
       </section>
 
       <section className="card">

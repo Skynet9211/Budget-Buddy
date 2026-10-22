@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { closeAppearance, useAppearanceOpen } from "../hooks/useAppearanceRoute";
+import { useAppearanceOpen, useCloseAppearance } from "../hooks/useAppearanceRoute";
 import { useTheme, type Mode } from "../hooks/useTheme";
 import { PALETTES } from "../lib/themes";
 
@@ -42,6 +42,7 @@ const MODES: { id: Mode; label: string; hint: string; icon: JSX.Element }[] = [
 /** Full-screen page for choosing light/dark mode and a colour theme. Opened from the floating button. */
 export default function AppearancePage() {
   const open = useAppearanceOpen();
+  const closeAppearance = useCloseAppearance();
   const { mode, palette, resolved, setMode, setPalette } = useTheme();
   const backRef = useRef<HTMLButtonElement>(null);
 
@@ -59,7 +60,7 @@ export default function AppearancePage() {
       app?.removeAttribute("inert");
       window.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, closeAppearance]);
 
   if (!open) return null;
 

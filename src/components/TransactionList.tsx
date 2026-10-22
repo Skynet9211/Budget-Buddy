@@ -1,13 +1,16 @@
 import { emojiFor } from "../lib/categories";
+import { paymentModeName } from "../lib/paymentModes";
 import { formatDate, formatMoney, type Transaction } from "../lib/transactions";
+import type { PaymentMode } from "../types";
 
 interface Props {
   transactions: Transaction[];
+  paymentModes: PaymentMode[];
   loading: boolean;
   onDelete: (id: string) => Promise<void>;
 }
 
-export default function TransactionList({ transactions, loading, onDelete }: Props) {
+export default function TransactionList({ transactions, paymentModes, loading, onDelete }: Props) {
   const spent = transactions.filter((t) => t.type === "debit").reduce((s, t) => s + t.amount, 0);
   const received = transactions.filter((t) => t.type === "credit").reduce((s, t) => s + t.amount, 0);
 
@@ -41,7 +44,7 @@ export default function TransactionList({ transactions, loading, onDelete }: Pro
               <span className="name">{t.party ?? t.category?.name ?? "Transaction"}</span>
               <span className="txn-sub">
                 {t.category ? `${t.category.name} · ` : ""}
-                {formatDate(t.date)}
+                {paymentModeName(t.paymentMode, paymentModes)} · {formatDate(t.date)}
               </span>
             </div>
             <strong className={`amount ${t.type}`}>

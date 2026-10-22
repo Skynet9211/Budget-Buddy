@@ -1,4 +1,5 @@
-import type { Expense } from "../types";
+import type { Expense, PaymentFlow } from "../types";
+import { DEFAULT_PAYMENT_MODE } from "./paymentModes";
 import { supabase } from "./supabase";
 
 export type TxnType = "debit" | "credit";
@@ -12,6 +13,8 @@ export interface ParsedTransaction {
   category: { id: string; name: string } | null;
   /** A category to create because no existing one fits. */
   new_category: string | null;
+  /** A `payment_modes` id. UPI unless the note named another mode. */
+  payment_mode?: string;
   /** Who decided the category: the user's own history, a matching category name, or the AI. */
   category_source?: "history" | "name" | "llm" | null;
 }
@@ -80,6 +83,8 @@ export interface NewTransaction {
   categoryId: string | null;
   newCategory: string | null;
   rawText: string | null;
+  /** A `payment_modes` id. Defaults to UPI. */
+  paymentMode?: string;
 }
 
 /**
@@ -96,6 +101,7 @@ export async function saveTransactions(items: NewTransaction[]): Promise<string[
       category_id: t.categoryId,
       new_category: t.categoryId ? null : t.newCategory,
       raw_text: t.rawText,
+      payment_mode: t.paymentMode || DEFAULT_PAYMENT_MODE,
     })),
   });
   if (error) throw new Error(error.message);
@@ -110,6 +116,8 @@ export interface Transaction {
   currency: string;
   party: string | null;
   category: { id: string; name: string } | null;
+  /** A `payment_modes` id. */
+  paymentMode: string;
   createdAt: string;
 }
 
@@ -120,7 +128,7 @@ export async function fetchTransactions(): Promise<Transaction[]> {
   const { data, error } = await supabase
     .from("transactions")
     .select(
-      "id,type,created_at,category:categories!category_id(id,name),date:transaction_dates(txn_date),amount:transaction_amounts(amount,currency),party:transaction_parties(name)",
+      "id,type,payment_mode,created_at,category:categories!category_id(id,name),date:transaction_dates(txn_date),amount:transaction_amounts(amount,currency),party:transaction_parties(name)",
     )
     .order("created_at", { ascending: false })
     .limit(200);
@@ -140,6 +148,7 @@ export async function fetchTransactions(): Promise<Transaction[]> {
         currency: amount?.currency ?? "INR",
         party: one<{ name: string }>(r.party)?.name ?? null,
         category: one<{ id: string; name: string }>(r.category),
+        paymentMode: r.payment_mode ?? DEFAULT_PAYMENT_MODE,
         createdAt: r.created_at,
       };
     })
@@ -183,6 +192,38 @@ export async function fetchSpending(): Promise<Expense[]> {
         amount: Number(amount?.amount ?? 0),
         description: one<{ name: string }>(r.party)?.name ?? "Expense",
         categories: names,
+      });
+    }
+    if (rows.length < SPENDING_PAGE) break;
+  }
+  return out;
+}
+
+/**
+ * Every transaction, money in and out, reduced to what the payment-mode chart needs. Pages through
+ * the table for the same reason as `fetchSpending`.
+ */
+export async function fetchPaymentFlows(): Promise<PaymentFlow[]> {
+  const out: PaymentFlow[] = [];
+  for (let from = 0; ; from += SPENDING_PAGE) {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("id,type,payment_mode,created_at,date:transaction_dates(txn_date),amount:transaction_amounts(amount)")
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, from + SPENDING_PAGE - 1);
+    if (error) throw new Error(error.message);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (data ?? []) as any[];
+    for (const r of rows) {
+      const date = one<{ txn_date: string }>(r.date);
+      const amount = one<{ amount: number | string }>(r.amount);
+      out.push({
+        date: date?.txn_date ?? String(r.created_at).slice(0, 10),
+        amount: Number(amount?.amount ?? 0),
+        type: r.type === "credit" ? "credit" : "debit",
+        paymentMode: r.payment_mode ?? DEFAULT_PAYMENT_MODE,
       });
     }
     if (rows.length < SPENDING_PAGE) break;

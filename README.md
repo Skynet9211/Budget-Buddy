@@ -34,6 +34,12 @@ Optional function secrets for tuning (similarity is cosine, 0 to 1):
 | `CATEGORIZE_DIRECT_THRESHOLD` / `CATEGORIZE_DIRECT_MARGIN` | `0.92` / `0.03` | Category-name tier |
 
 
+### Mode of payment
+
+Every transaction has a mode of payment from the `payment_modes` table: UPI, Cash, Card, Net Banking, Wallet or Cheque. Say it in the note, e.g. *"13 sep Blinkit 300 cash"*, and it is saved as Cash. If the note says nothing, or names something that isn't in the list, it is saved as **UPI**. You can change it in the review step before saving. The dashboard's **By mode of payment** chart and table show how much was debited and credited through each mode for the selected dates.
+
+Run migration `007_payment_modes.sql` (existing transactions become UPI), then redeploy the `parse-transaction` function.
+
 ### Multi-transaction notes
 
 A single note can include several transactions at once, such as multiple expenses for different people or vendors. The app breaks them into individual review cards and saves them together as one batch.

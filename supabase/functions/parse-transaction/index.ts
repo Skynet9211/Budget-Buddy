@@ -1,7 +1,7 @@
 // Supabase Edge Function (Deno). Turns what the user types or says (English, Hindi or Hinglish), e.g.
 //   "15 sep akhil 500rs"   /   "आज अखिल को 500 रुपये दिए"   /   "kal salary 25000 mila"
-// into structured transactions (one note can hold several): date, amount, debit/credit, who, and
-// which category each belongs to.
+// into structured transactions (one note can hold several): date, amount, debit/credit, who,
+// which category each belongs to, and the mode of payment ("cash", "card", ...; UPI when not said).
 //
 //   POST JSON      { "text": "...", "today": "2026-10-12" }
 //   POST multipart  audio=<file>, today=<YYYY-MM-DD>   (speech is transcribed first)
@@ -36,7 +36,7 @@ The note can contain ONE or SEVERAL transactions, separated by commas, "and", "a
 You are given today's date and the user's existing categories.
 
 Return ONLY JSON of this shape:
-{"transactions": [{"date": "YYYY-MM-DD", "amount": <number or null>, "type": "debit" | "credit", "party": <string or null>, "category": <exact name from the list or null>, "new_category": <string or null>}]}
+{"transactions": [{"date": "YYYY-MM-DD", "amount": <number or null>, "type": "debit" | "credit", "party": <string or null>, "category": <exact name from the list or null>, "new_category": <string or null>, "payment_mode": <id from the payment modes list or null>}]}
 Return {"transactions": []} if the note contains no transaction.
 
 The parts of a transaction (date, amount, who, debit/credit wording) can come in ANY order and the user may leave some out. Identify each part by what it is, never by its position. All of these mean the same thing: "15 sep akhil 500rs", "akhil 500rs 15 sep", "500rs akhil 15 sep", "akhil ko 500 diye 15 sep ko", "paid akhil 500 on 15 sep", "on 15 sep I gave 500 to akhil", "500 to akhil, 15th September", "debit 500 akhil 15/09".
@@ -48,6 +48,7 @@ Rules:
 - type: decide the direction of the money from the wording and grammar, wherever it appears. The speaker is the user. "debit" (money OUT): paid, pay, spent, bought, gave, give, sent, transferred, lent, bill, rent, recharge, "to <name>", "<name> ko", "diye", "diya", "bheje", "kharch", "kharcha", "bhara", "maine <name> ko ...", "दिए", "दिया", "भेजे", "खर्च", or the word "debit"/"dr". "credit" (money IN): received, got, earned, salary, refund, cashback, credited, "from <name>", "<name> se ... mile/mila/aaye", "<name> ne mujhe/humko ... diye", "wapas mile", "मिला", "मिले", "आया", "वापस मिले", or the word "credit"/"cr"/"income". Hindi "ko" marks the receiver (debit), "se" marks the source (credit). When truly unclear, use "debit".
 - party: the person, shop, brand, app or company the money went to or came from, e.g. "Akhil", "Swiggy", "Amazon". Write it in Latin letters, Title case, transliterating Hindi names (अखिल -> "Akhil"). Do not put amounts, dates, particles ("ko", "se", "ne", "to", "from") or generic words in it. Use null if there is none.
 - category: choose from the existing list ONLY when it is a genuinely good fit, copying the name exactly. Otherwise set category to null and give new_category: a short name (1-3 words, Title case). Brand, app and store names are valid categories and keep their spelling (e.g. "Swiggy", "Amazon", "Uber"). A person-to-person payment with no stated purpose belongs in "Friends & Family". Income such as salary or interest belongs in a category like "Salary" or "Income". If you pick from the list, new_category must be null.
+- payment_mode: how the money was paid or received. Use the id from the "Payment modes" list ONLY when the note explicitly says so, e.g. "cash"/"nakad"/"नकद" -> cash, "gpay"/"phonepe"/"upi" -> upi, "card"/"credit card"/"debit card" -> card, "netbanking"/"neft"/"imps"/"rtgs"/"bank transfer" -> netbanking, "wallet"/"paytm wallet" -> wallet, "cheque" -> cheque. The mode word belongs to the transaction it sits in ("blinkit 300 cash, uber 150" = only Blinkit is cash). It is NOT a party or a category. If the note says nothing about it, or says something that is not in the list, use null.
 - Never include explanations, only the JSON.`;
 
 async function transcribe(audio: File, apiKey: string): Promise<string> {
@@ -81,10 +82,71 @@ interface Raw {
   party?: unknown;
   category?: unknown;
   new_category?: unknown;
+  payment_mode?: unknown;
 }
 
-async function parseWithLlm(text: string, today: string, categories: string[], apiKey: string): Promise<Raw[]> {
+interface PaymentMode {
+  id: string;
+  name: string;
+}
+
+/** The default mode, used whenever the note names none or names one we don't know. */
+const DEFAULT_MODE = "upi";
+
+/** Used only if the `payment_modes` table can't be read (migration 007 not applied yet). */
+const FALLBACK_MODES: PaymentMode[] = [
+  { id: "upi", name: "UPI" },
+  { id: "cash", name: "Cash" },
+  { id: "card", name: "Card" },
+  { id: "netbanking", name: "Net Banking" },
+  { id: "wallet", name: "Wallet" },
+  { id: "cheque", name: "Cheque" },
+];
+
+/** Wordings the model may return instead of an exact id, mapped to the mode id. */
+const MODE_ALIASES: Record<string, string> = {
+  gpay: "upi",
+  "google pay": "upi",
+  phonepe: "upi",
+  "phone pe": "upi",
+  bhim: "upi",
+  nakad: "cash",
+  naqd: "cash",
+  "नकद": "cash",
+  "credit card": "card",
+  "debit card": "card",
+  "atm card": "card",
+  "net banking": "netbanking",
+  "internet banking": "netbanking",
+  neft: "netbanking",
+  imps: "netbanking",
+  rtgs: "netbanking",
+  "bank transfer": "netbanking",
+  "paytm wallet": "wallet",
+  check: "cheque",
+};
+
+/** Maps whatever the model said to a known mode id. Anything missing or unrecognised is UPI. */
+function resolvePaymentMode(value: unknown, modes: PaymentMode[]): string {
+  if (typeof value !== "string") return DEFAULT_MODE;
+  const key = value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  if (!key) return DEFAULT_MODE;
+  const exact = modes.find((m) => m.id === key.replace(/ /g, "") || m.name.toLowerCase() === key);
+  if (exact) return exact.id;
+  const alias = MODE_ALIASES[key];
+  if (alias && modes.some((m) => m.id === alias)) return alias;
+  return DEFAULT_MODE;
+}
+
+async function parseWithLlm(
+  text: string,
+  today: string,
+  categories: string[],
+  modes: PaymentMode[],
+  apiKey: string,
+): Promise<Raw[]> {
   const list = categories.length ? categories.map((c) => `- ${c}`).join("\n") : "(none yet)";
+  const modeList = modes.map((m) => `- ${m.id} (${m.name})`).join("\n");
   const weekday = new Date(`${today}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
   const request = () =>
     fetch(`${GROQ_URL}/chat/completions`, {
@@ -98,7 +160,7 @@ async function parseWithLlm(text: string, today: string, categories: string[], a
           { role: "system", content: SYSTEM_PROMPT },
           {
             role: "user",
-            content: `Today: ${today} (${weekday})\n\nExisting categories:\n${list}\n\nNote: ${text}`,
+            content: `Today: ${today} (${weekday})\n\nExisting categories:\n${list}\n\nPayment modes:\n${modeList}\n\nNote: ${text}`,
           },
         ],
       }),
@@ -144,7 +206,12 @@ function addDays(iso: string, days: number): string {
 const titleCase = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 /** Never trust the model: validate and clean every field. */
-function sanitize(raw: Raw, today: string, categories: { id: string; name: string }[]) {
+function sanitize(
+  raw: Raw,
+  today: string,
+  categories: { id: string; name: string }[],
+  modes: PaymentMode[],
+) {
   const date =
     typeof raw.date === "string" && isRealDate(raw.date) && raw.date <= addDays(today, 1) && raw.date >= "2000-01-01"
       ? raw.date
@@ -155,6 +222,7 @@ function sanitize(raw: Raw, today: string, categories: { id: string; name: strin
   if (typeof n === "number" && Number.isFinite(n) && n > 0 && n < 1e11) amount = Math.round(n * 100) / 100;
 
   const type = raw.type === "credit" ? "credit" : "debit";
+  const payment_mode = resolvePaymentMode(raw.payment_mode, modes);
 
   const party =
     typeof raw.party === "string" && raw.party.trim()
@@ -171,10 +239,10 @@ function sanitize(raw: Raw, today: string, categories: { id: string; name: strin
     newCategory = titleCase(raw.new_category.replace(/\s+/g, " ").trim().slice(0, 40));
     // The model suggested something we already have under a different case: use the existing one.
     const same = categories.find((c) => c.name.trim().toLowerCase() === newCategory!.toLowerCase());
-    if (same) return { date, amount, type, party, category: same, new_category: null };
+    if (same) return { date, amount, type, party, payment_mode, category: same, new_category: null };
   }
 
-  return { date, amount, type, party, category: picked, new_category: newCategory };
+  return { date, amount, type, party, payment_mode, category: picked, new_category: newCategory };
 }
 
 type Sanitized = ReturnType<typeof sanitize>;
@@ -280,10 +348,17 @@ Deno.serve(async (req) => {
     if (catError) throw new Error(catError.message);
     const categories = rows ?? [];
 
-    const raw = await parseWithLlm(text, today, categories.map((c) => c.name), apiKey);
+    const { data: modeRows, error: modeError } = await supabase
+      .from("payment_modes")
+      .select("id,name")
+      .order("sort_order", { ascending: true });
+    if (modeError) console.warn("Payment modes unavailable, using built-in list:", modeError.message);
+    const modes: PaymentMode[] = !modeError && modeRows?.length ? modeRows : FALLBACK_MODES;
+
+    const raw = await parseWithLlm(text, today, categories.map((c) => c.name), modes, apiKey);
     const parsed = raw
       .slice(0, MAX_TRANSACTIONS)
-      .map((r) => sanitize(r, today, categories))
+      .map((r) => sanitize(r, today, categories, modes))
       // An entry with neither an amount nor a person carries no information.
       .filter((t) => t.amount !== null || t.party !== null);
     const transactions = await refineCategories(supabase, parsed);

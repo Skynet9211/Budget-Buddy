@@ -3,6 +3,10 @@ import { supabase } from "../lib/supabase";
 
 type Mode = "signin" | "signup" | "forgot" | "code";
 
+// Set only on the dev site (see .env.example). Shows a one-click login to the seeded demo account.
+const DEMO_EMAIL = import.meta.env.VITE_DEMO_EMAIL as string | undefined;
+const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD as string | undefined;
+
 export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -39,6 +43,15 @@ export default function AuthScreen() {
       const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "recovery" });
       if (error) setMessage({ text: "That code is wrong or has expired. Check it or request a new one.", kind: "error" });
     }
+    setBusy(false);
+  }
+
+  async function signInDemo() {
+    if (!DEMO_EMAIL || !DEMO_PASSWORD) return;
+    setBusy(true);
+    setMessage(null);
+    const { error } = await supabase.auth.signInWithPassword({ email: DEMO_EMAIL, password: DEMO_PASSWORD });
+    if (error) setMessage({ text: error.message, kind: "error" });
     setBusy(false);
   }
 
@@ -101,6 +114,12 @@ export default function AuthScreen() {
         <button className="btn primary" disabled={busy}>
           {busy ? "Please wait..." : submitLabel}
         </button>
+
+        {mode === "signin" && DEMO_EMAIL && DEMO_PASSWORD && (
+          <button type="button" className="btn" disabled={busy} onClick={signInDemo}>
+            Try the demo account
+          </button>
+        )}
 
         {mode === "signin" && (
           <button type="button" className="btn link" onClick={() => go("forgot")}>

@@ -1,8 +1,9 @@
-import { openAppearance, useAppearanceOpen } from "../hooks/useAppearanceRoute";
+import { useAppearanceOpen, useOpenAppearance } from "../hooks/useAppearanceRoute";
 
 /** Floating action button that opens the Appearance page (mode + colour theme). */
 export default function ThemeToggle() {
   const open = useAppearanceOpen();
+  const openAppearance = useOpenAppearance();
   if (open) return null;
 
   return (

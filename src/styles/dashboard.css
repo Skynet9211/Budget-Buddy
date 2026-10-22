@@ -110,3 +110,23 @@
 .dashboard .recharts-cartesian-axis-tick text { fill: var(--muted); }
 .dashboard .recharts-cartesian-grid line { stroke: var(--border); }
 .dashboard .recharts-bar-rectangle path { fill: var(--accent); }
+/* ...except the payment-mode chart, where red = debited and green = credited. */
+.dashboard .payment-chart .debit-bar .recharts-bar-rectangle path { fill: var(--error); }
+.dashboard .payment-chart .credit-bar .recharts-bar-rectangle path { fill: var(--credit); }
+
+/* Payment-mode table under the chart */
+.dashboard .mode-table { width: 100%; border-collapse: collapse; margin-top: 0.6rem; font-size: 0.9rem; }
+.dashboard .mode-table th,
+.dashboard .mode-table td { padding: 0.4rem 0.2rem; border-top: 1px solid var(--border); text-align: left; }
+.dashboard .mode-table thead th { border-top: none; color: var(--muted); font-size: 0.8rem; font-weight: 700; }
+.dashboard .mode-table tbody th { font-weight: 700; }
+.dashboard .mode-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dashboard .mode-count {
+  margin-left: 0.3rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--tint);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}

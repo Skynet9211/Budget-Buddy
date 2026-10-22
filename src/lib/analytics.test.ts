@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { Expense } from "../types";
-import { categoryTotals, filterByRange, timeSeries, totalSpend } from "./analytics";
+import type { Expense, PaymentFlow } from "../types";
+import {
+  categoryTotals,
+  filterByRange,
+  filterFlowsByRange,
+  paymentModeTotals,
+  timeSeries,
+  totalSpend,
+} from "./analytics";
 import { ALL_TIME_START, oneMonthAgo } from "./dates";
 
 const e = (id: string, date: string, amount: number, categories: string[]): Expense => ({
@@ -80,6 +87,55 @@ describe("timeSeries", () => {
 
   it("returns nothing when there is no spending", () => {
     expect(timeSeries([], "2026-09-01", "2026-09-20", "weekly")).toEqual([]);
+  });
+});
+
+describe("paymentModeTotals", () => {
+  const modes = [
+    { id: "upi", name: "UPI" },
+    { id: "cash", name: "Cash" },
+    { id: "card", name: "Card" },
+  ];
+  const f = (type: "debit" | "credit", amount: number, paymentMode: string, date = "2026-09-01"): PaymentFlow => ({
+    date,
+    amount,
+    type,
+    paymentMode,
+  });
+
+  it("sums money out and money in separately per mode, busiest first", () => {
+    const t = paymentModeTotals(
+      [f("debit", 300, "cash"), f("debit", 100, "upi"), f("credit", 1000, "upi"), f("debit", 50.5, "upi")],
+      modes,
+    );
+    expect(t.map((m) => [m.name, m.debit, m.credit, m.count])).toEqual([
+      ["UPI", 150.5, 1000, 3],
+      ["Cash", 300, 0, 1],
+    ]);
+  });
+
+  it("leaves out modes with no transactions", () => {
+    expect(paymentModeTotals([f("debit", 10, "upi")], modes).map((m) => m.id)).toEqual(["upi"]);
+    expect(paymentModeTotals([], modes)).toEqual([]);
+  });
+
+  it("still lists a mode that isn't in the table, under its id", () => {
+    expect(paymentModeTotals([f("debit", 10, "bitcoin")], modes)[0].name).toBe("bitcoin");
+  });
+});
+
+describe("filterFlowsByRange", () => {
+  it("is inclusive on both ends", () => {
+    const flows: PaymentFlow[] = ["2026-09-01", "2026-09-02", "2026-09-03"].map((date) => ({
+      date,
+      amount: 1,
+      type: "debit",
+      paymentMode: "upi",
+    }));
+    expect(filterFlowsByRange(flows, "2026-09-02", "2026-09-03").map((x) => x.date)).toEqual([
+      "2026-09-02",
+      "2026-09-03",
+    ]);
   });
 });
 

@@ -1,41 +1,40 @@
-import { useSyncExternalStore } from "react";
+import { useCallback } from "react";
+import { useLocation, useNavigate, type Location } from "react-router-dom";
 
-/**
- * The Appearance page lives at "#/appearance". Using the URL hash means the browser/Android back
- * button closes it, without pulling in a router for a single extra page.
- */
-const HASH = "#/appearance";
+/** The Appearance page lives at this path. It is drawn on top of whichever page opened it. */
+export const APPEARANCE_PATH = "/appearance";
 
-/** True when this page was opened from inside the app (so "back" can safely mean history.back()). */
-let openedByApp = false;
+/** Where to land when Appearance is opened directly (a typed/bookmarked URL) and then closed. */
+export const DEFAULT_PATH = "/dashboard";
 
-const isOpen = () => location.hash === HASH;
+type AppearanceState = { background?: Location } | null;
 
-function subscribe(cb: () => void) {
-  const onChange = () => {
-    if (!isOpen()) openedByApp = false;
-    cb();
-  };
-  window.addEventListener("hashchange", onChange);
-  return () => window.removeEventListener("hashchange", onChange);
-}
-
-export function openAppearance() {
-  openedByApp = true;
-  location.hash = HASH;
-}
-
-export function closeAppearance() {
-  if (openedByApp) {
-    openedByApp = false;
-    history.back();
-  } else {
-    // Opened by a direct link: drop the hash instead of leaving the app.
-    history.replaceState(null, "", location.pathname + location.search);
-    window.dispatchEvent(new HashChangeEvent("hashchange"));
-  }
+/** The page that was on screen when Appearance was opened, if it was opened from inside the app. */
+export function useBackgroundLocation(): Location | undefined {
+  const location = useLocation();
+  return (location.state as AppearanceState)?.background;
 }
 
 export function useAppearanceOpen() {
-  return useSyncExternalStore(subscribe, isOpen);
+  return useLocation().pathname === APPEARANCE_PATH;
+}
+
+export function useOpenAppearance() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return useCallback(
+    () => navigate(APPEARANCE_PATH, { state: { background: location } }),
+    [navigate, location],
+  );
+}
+
+export function useCloseAppearance() {
+  const navigate = useNavigate();
+  const background = useBackgroundLocation();
+  return useCallback(() => {
+    // Opened from inside the app: "back" returns to the page underneath, as the browser/Android
+    // back button does. Opened by a direct link: go to the default page instead of leaving the app.
+    if (background) navigate(-1);
+    else navigate(DEFAULT_PATH, { replace: true });
+  }, [navigate, background]);
 }

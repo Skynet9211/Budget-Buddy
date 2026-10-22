@@ -12,9 +12,12 @@ import {
   type TxnType,
 } from "../lib/transactions";
 import type { Category } from "../hooks/useCategories";
+import { DEFAULT_PAYMENT_MODE } from "../lib/paymentModes";
+import type { PaymentMode } from "../types";
 
 interface Props {
   categories: Category[];
+  paymentModes: PaymentMode[];
   onSaved: () => Promise<void> | void;
   /** Called with true while there is parsed data waiting to be edited/saved, false otherwise. */
   onReviewChange?: (active: boolean) => void;
@@ -30,6 +33,8 @@ interface Draft {
   amount: string;
   date: string;
   party: string;
+  /** A payment mode id. UPI unless the note named another one. */
+  paymentMode: string;
   /** A category id, NEW (create one) or NONE. */
   categoryChoice: string;
   newCategory: string;
@@ -52,6 +57,7 @@ function toReview(res: ParseResult): Review {
       amount: p.amount != null ? String(p.amount) : "",
       date: p.date,
       party: p.party ?? "",
+      paymentMode: p.payment_mode || DEFAULT_PAYMENT_MODE,
       categoryChoice: p.category ? p.category.id : p.new_category ? NEW : NONE,
       newCategory: p.new_category ?? "",
       extraIds: [],
@@ -66,7 +72,7 @@ const isValid = (d: Draft) =>
   /^\d{4}-\d{2}-\d{2}$/.test(d.date) &&
   !(d.categoryChoice === NEW && !d.newCategory.trim());
 
-export default function TransactionInput({ categories, onSaved, onReviewChange }: Props) {
+export default function TransactionInput({ categories, paymentModes, onSaved, onReviewChange }: Props) {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +193,7 @@ export default function TransactionInput({ categories, onSaved, onReviewChange }
             categoryId: existing ? d.categoryChoice : null,
             newCategory: d.categoryChoice === NEW ? d.newCategory.trim() : null,
             rawText: review.rawText || null,
+            paymentMode: d.paymentMode,
           };
         }),
       );
@@ -312,6 +319,16 @@ export default function TransactionInput({ categories, onSaved, onReviewChange }
                 <label className="wide">
                   {d.type === "debit" ? "Paid to" : "Received from"}
                   <input value={d.party} onChange={(e) => updateAt(i, { party: e.target.value })} placeholder="e.g. Akhil" />
+                </label>
+                <label className="wide">
+                  Mode of payment
+                  <select value={d.paymentMode} onChange={(e) => updateAt(i, { paymentMode: e.target.value })}>
+                    {paymentModes.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="wide">
                   Category
