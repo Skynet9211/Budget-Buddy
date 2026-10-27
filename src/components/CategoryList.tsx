@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { List, ListEmoji, ListItem } from "@/components/ui/list";
 import { Message } from "@/components/ui/message";
 import type { Category } from "../hooks/useCategories";
-import { matchesSearchQuery, useSearch } from "../hooks/useSearch";
 import { emojiFor } from "../lib/categories";
 
 interface Props {
