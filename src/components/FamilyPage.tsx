@@ -134,21 +134,24 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
   }
 
   return (
-    <Card className="flex flex-col gap-3">
+    <Card className="flex flex-col gap-4">
       <h2 className="mb-0">Family</h2>
       {message && <Message kind={message.kind} className="mt-0">{message.text}</Message>}
 
-      <form onSubmit={createFamily} className="flex items-end gap-2">
-        <Field label="Create a family" className="flex-1">
-          <Input value={familyName} onChange={(e) => setFamilyName(e.target.value)} placeholder="Family name" disabled={busy} />
-        </Field>
-        <Button disabled={busy || !familyName.trim()}>Create</Button>
-      </form>
+      <section className="flex flex-col gap-2 border-t border-border pt-3">
+        <h3 className="mt-0 mb-0">Create a family</h3>
+        <form onSubmit={createFamily} className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+          <Field label="Family name" className="flex-1">
+            <Input value={familyName} onChange={(e) => setFamilyName(e.target.value)} placeholder="Family name" disabled={busy} />
+          </Field>
+          <Button disabled={busy || !familyName.trim()}>Create</Button>
+        </form>
+      </section>
 
-      <div>
-        <h3>Family members</h3>
+      <section className="flex flex-col gap-2 border-t border-border pt-3">
+        <h3 className="mt-0 mb-0">Family members</h3>
         {currentFamily ? (
-          <ul className="flex flex-col gap-1 text-[0.9rem] wrap-anywhere">
+          <ul className="flex list-none flex-col gap-1 p-0 text-[0.9rem] wrap-anywhere">
             {members.length === 0 && <li className="text-muted-foreground">No family members yet.</li>}
             {members.map((member) => (
               <li key={member.id}>
@@ -159,11 +162,11 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
         ) : (
           <Message>Create or select a family to manage members.</Message>
         )}
-      </div>
+      </section>
 
-      <div>
-        <h3>Invite by email</h3>
-        <form onSubmit={inviteMember} className="flex items-end gap-2">
+      <section className="flex flex-col gap-2 border-t border-border pt-3">
+        <h3 className="mt-0 mb-0">Invite by email</h3>
+        <form onSubmit={inviteMember} className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
           <Field label="Email address" className="flex-1">
             <Input
               type="email"
@@ -177,14 +180,14 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
             Send invite
           </Button>
         </form>
-      </div>
+      </section>
 
-      <div>
-        <h3>Pending invites</h3>
+      <section className="flex flex-col gap-2 border-t border-border pt-3">
+        <h3 className="mt-0 mb-0">Pending invites</h3>
         {invitations.length === 0 ? (
           <Message>No invites yet.</Message>
         ) : (
-          <ul className="flex flex-col gap-1 text-[0.9rem] wrap-anywhere">
+          <ul className="flex list-none flex-col gap-1 p-0 text-[0.9rem] wrap-anywhere">
             {invitations.map((invitation) => (
               <li key={invitation.id}>
                 {invitation.email} · {invitation.status}
@@ -192,7 +195,7 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
             ))}
           </ul>
         )}
-      </div>
+      </section>
 
       {invitations.some((inv) => inv.email.toLowerCase() === email.toLowerCase() && inv.status === "pending") && (
         <Button onClick={() => void acceptOwnInvite()}>Accept invite to this family</Button>
