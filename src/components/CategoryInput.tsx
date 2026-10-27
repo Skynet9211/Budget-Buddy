@@ -111,10 +111,15 @@ export default function CategoryInput({ existing, onSave }: Props) {
         <Input
           type="text"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={setText}
           placeholder="e.g. Groceries, Rent, Netflix"
+          ariaLabel="Category names"
+          onSubmit={submitText}
           disabled={status !== "idle"}
-          aria-label="Category names"
+          micAvailable={micAvailable}
+          micActive={status === "recording"}
+          onMicClick={toggleMic}
+          micDisabled={status === "thinking"}
         />
         <Button disabled={!text.trim() || status !== "idle"}>Add</Button>
         {micAvailable && (
