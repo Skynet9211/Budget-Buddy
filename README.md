@@ -52,11 +52,11 @@ Set these Supabase Edge Function secrets before sending invites:
 
 | Secret | Value |
 | --- | --- |
-| `RESEND_API_KEY` | API key for the Resend account that sends invitation email |
-| `FAMILY_INVITE_FROM` | Verified sender address, such as `Budget Buddy <invites@example.com>` |
+| `SENDGRID_API_KEY` | SendGrid API key with Mail Send permission |
+| `FAMILY_INVITE_FROM` | Verified SendGrid sender address, such as `Budget Buddy <invites@example.com>` |
 | `APP_SITE_URL` | Public origin of the app, such as `https://budget.example.com` |
 
-The recipient must sign in or create an account with the invited email address. If email confirmation is enabled, the confirmation link returns them to the family invitation so they can accept it.
+Verify the sender identity or domain in SendGrid before sending. The recipient must sign in or create an account with the invited email address. If email confirmation is enabled, the confirmation link returns them to the family invitation so they can accept it.
 
 ## Tech stack
 

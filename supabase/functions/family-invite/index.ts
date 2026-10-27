@@ -22,10 +22,10 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
   const from = Deno.env.get("FAMILY_INVITE_FROM");
   const appSiteUrl = Deno.env.get("APP_SITE_URL");
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !resendApiKey || !from || !appSiteUrl) {
+  if (!supabaseUrl || !anonKey || !serviceRoleKey || !sendGridApiKey || !from || !appSiteUrl) {
     console.error("Family invite function is missing required secrets");
     return json({ error: "Family invitations are not configured yet." }, 500);
   }
@@ -87,18 +87,24 @@ Deno.serve(async (request) => {
 
   const familyName = String(family.name).replace(/[<>&"']/g, "");
   const safeUrl = acceptUrl.toString().replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-  const response = await fetch("https://api.resend.com/emails", {
+  const senderMatch = /^(.+?)\s*<([^<>]+)>$/.exec(from.trim());
+  const senderEmail = senderMatch ? senderMatch[2].trim() : from.trim();
+  const senderName = senderMatch?.[1].trim().replace(/^["']|["']$/g, "");
+  const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
-    headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${sendGridApiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from,
-      to: [email],
+      personalizations: [{ to: [{ email }] }],
+      from: { email: senderEmail, ...(senderName ? { name: senderName } : {}) },
       subject: `Invitation to join ${familyName} on Budget Buddy`,
-      html: `<p>You have been invited to join <strong>${familyName}</strong> on Budget Buddy.</p><p><a href="${safeUrl}" style="display:inline-block;padding:12px 18px;background:#5b5bd6;color:#fff;text-decoration:none;border-radius:8px">Accept invitation</a></p><p>If you do not have a Budget Buddy account yet, create one with this email address, then open this invitation link again.</p>`,
+      content: [{
+        type: "text/html",
+        value: `<p>You have been invited to join <strong>${familyName}</strong> on Budget Buddy.</p><p><a href="${safeUrl}" style="display:inline-block;padding:12px 18px;background:#5b5bd6;color:#fff;text-decoration:none;border-radius:8px">Accept invitation</a></p><p>If you do not have a Budget Buddy account yet, create one with this email address, then open this invitation link again.</p>`,
+      }],
     }),
   });
   if (!response.ok) {
-    console.error("Invitation email delivery failed", response.status, await response.text());
+    console.error("SendGrid invitation email failed", response.status, await response.text());
     return json({ error: "The invitation was created, but the email could not be sent. Check the email service configuration and try again." }, 502);
   }
 
