@@ -51,7 +51,7 @@ function apply(s: ThemeState) {
   for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
   root.dataset.theme = s.resolved; // drives color-scheme (form controls, scrollbars)
   root.dataset.palette = s.palette;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", vars["--bg"]);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", vars["--background"]);
 }
 
 function update(next: ThemeState) {

@@ -32,9 +32,14 @@ describe("palettes", () => {
 describe("helpers", () => {
   it("builds every CSS variable the stylesheets use", () => {
     const vars = buildVars(getPalette("ocean"), "dark");
-    expect(vars["--bg"]).toBe("#0f1a21");
-    expect(vars["--accent-rgb"]).toBe("59, 143, 184");
-    for (const name of ["--card", "--border", "--accent-dark", "--accent-hover", "--text", "--muted", "--tint", "--surface-2", "--success", "--error", "--debit-bg", "--credit-bg", "--credit", "--shadow"]) {
+    expect(vars["--background"]).toBe("#0f1a21");
+    expect(vars["--primary"]).toBe("#3b8fb8");
+    for (const name of [
+      "--foreground", "--card", "--card-foreground", "--popover", "--popover-foreground", "--primary-foreground",
+      "--primary-hover", "--secondary", "--secondary-foreground", "--muted", "--muted-foreground", "--accent",
+      "--accent-foreground", "--heading", "--surface", "--border", "--input", "--ring", "--destructive",
+      "--success", "--debit-bg", "--credit-bg", "--credit", "--shadow",
+    ]) {
       expect(vars[name], name).toBeTruthy();
     }
   });

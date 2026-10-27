@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import MicIcon from "./MicIcon";
+import MicButton from "./MicButton";
 import VoiceOverlay from "./VoiceOverlay";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Message } from "@/components/ui/message";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { canRecord, startRecording, type Recording } from "../lib/recorder";
 import {
   parseTransactionAudio,
@@ -228,19 +236,19 @@ export default function TransactionInput({ categories, paymentModes, familyId, f
   }
 
   return (
-    <section className="card">
+    <Card>
       <h2>{reviewing ? "Review transactions" : "Add transactions"}</h2>
 
       {/* While there's parsed data to edit/save, the input is hidden so the review has the focus. */}
       {!reviewing && (
         <>
-          <p className="hint">
+          <Message>
             Type or tap the mic, in English or Hindi. You can say several at once, like{" "}
             <em>“15 sep Akhil 500rs, Ramesh 200 and Swiggy 350”</em>.
-          </p>
+          </Message>
 
-          <form className="input-row" onSubmit={submitText}>
-            <input
+          <form className="mt-3 flex items-center gap-2" onSubmit={submitText}>
+            <Input
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -248,26 +256,17 @@ export default function TransactionInput({ categories, paymentModes, familyId, f
               disabled={busy}
               aria-label="Transactions"
             />
-            <button className="btn primary" disabled={!text.trim() || busy}>
-              Add
-            </button>
+            <Button disabled={!text.trim() || busy}>Add</Button>
             {micAvailable && (
-              <button
-                type="button"
-                className="mic"
-                onClick={toggleMic}
-                disabled={busy}
-                aria-label="Start voice input"
-                title="Tap to speak"
-              >
+              <MicButton onClick={toggleMic} disabled={busy} aria-label="Start voice input" title="Tap to speak">
                 <MicIcon size={26} />
-              </button>
+              </MicButton>
             )}
           </form>
 
           {/* Voice progress is shown by the full-screen overlay; typed input has no overlay. */}
-          {status === "thinking" && !viaVoice && <p className="info">Working it out...</p>}
-          {!micAvailable && <p className="hint">Voice input isn't available on this device, so typing only.</p>}
+          {status === "thinking" && !viaVoice && <Message kind="info">Working it out...</Message>}
+          {!micAvailable && <Message>Voice input isn't available on this device, so typing only.</Message>}
         </>
       )}
 
@@ -279,157 +278,167 @@ export default function TransactionInput({ categories, paymentModes, familyId, f
         />
       )}
 
-      {error && <p className="error">{error}</p>}
-      {notice && <p className="success">{notice}</p>}
+      {error && <Message kind="error">{error}</Message>}
+      {notice && <Message kind="success">{notice}</Message>}
 
       {review && (
-        <div className="confirm">
+        <div className="mt-3 border-t border-dashed pt-2.5">
           {review.heard && (
-            <p className="hint">
+            <Message>
               You said: <em>“{review.heard}”</em>
-            </p>
+            </Message>
           )}
           <h3>
             {count === 1 ? "Check before saving" : `Found ${count} transactions. Check before saving`}
           </h3>
 
           {review.drafts.map((d, i) => (
-            <div className="txn-draft" key={i}>
-              <div className="txn-draft-head">
-                <div className="type-toggle" role="group" aria-label={`Debit or credit for transaction ${i + 1}`}>
-                  <button type="button" className={d.type === "debit" ? "on debit" : ""} onClick={() => updateAt(i, { type: "debit" })}>
+            <div className="mb-3 rounded-lg border bg-surface p-3" key={i}>
+              <div className="mb-3 flex items-start gap-1.5">
+                <Segmented
+                  type="single"
+                  variant="outline"
+                  className="flex-1"
+                  value={d.type}
+                  onValueChange={(v) => v && updateAt(i, { type: v as TxnType })}
+                  aria-label={`Debit or credit for transaction ${i + 1}`}
+                >
+                  <SegmentedItem value="debit" tone="debit">
                     ↑ Debit
-                  </button>
-                  <button type="button" className={d.type === "credit" ? "on credit" : ""} onClick={() => updateAt(i, { type: "credit" })}>
+                  </SegmentedItem>
+                  <SegmentedItem value="credit" tone="credit">
                     ↓ Credit
-                  </button>
-                </div>
+                  </SegmentedItem>
+                </Segmented>
                 {count > 1 && (
-                  <button type="button" className="icon-btn" aria-label={`Remove transaction ${i + 1}`} onClick={() => removeAt(i)}>
+                  <Button variant="ghost" size="icon" aria-label={`Remove transaction ${i + 1}`} onClick={() => removeAt(i)}>
                     ✕
-                  </button>
+                  </Button>
                 )}
               </div>
 
-              <div className="fields">
-                <label>
-                  Amount (₹)
-                  <input
+              <div className="grid grid-cols-2 gap-2.5">
+                <Field label="Amount (₹)">
+                  <Input
                     inputMode="decimal"
                     value={d.amount}
                     onChange={(e) => updateAt(i, { amount: e.target.value })}
                     placeholder="0"
                     aria-invalid={!(parseAmount(d.amount) > 0)}
                   />
-                </label>
-                <label>
-                  Date
-                  <input type="date" max={localToday()} value={d.date} onChange={(e) => updateAt(i, { date: e.target.value })} />
-                </label>
-                <label className="wide">
-                  {d.type === "debit" ? "Paid to" : "Received from"}
-                  <input value={d.party} onChange={(e) => updateAt(i, { party: e.target.value })} placeholder="e.g. Akhil" />
-                </label>
-                <label className="wide">
-                  Mode of payment
-                  <select value={d.paymentMode} onChange={(e) => updateAt(i, { paymentMode: e.target.value })}>
-                    {paymentModes.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="wide">
-                  Category
-                  <select value={d.categoryChoice} onChange={(e) => updateAt(i, { categoryChoice: e.target.value })}>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                    <option value={NEW}>＋ New category...</option>
-                    <option value={NONE}>No category</option>
-                  </select>
-                </label>
+                </Field>
+                <Field label="Date">
+                  <Input type="date" max={localToday()} value={d.date} onChange={(e) => updateAt(i, { date: e.target.value })} />
+                </Field>
+                <Field label={d.type === "debit" ? "Paid to" : "Received from"} className="col-span-full">
+                  <Input value={d.party} onChange={(e) => updateAt(i, { party: e.target.value })} placeholder="e.g. Akhil" />
+                </Field>
+                <Field label="Mode of payment" className="col-span-full">
+                  <Select value={d.paymentMode} onValueChange={(v) => updateAt(i, { paymentMode: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {paymentModes.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Category" className="col-span-full">
+                  <Select value={d.categoryChoice} onValueChange={(v) => updateAt(i, { categoryChoice: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={NEW}>＋ New category...</SelectItem>
+                      <SelectItem value={NONE}>No category</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
                 {d.categoryChoice === NEW && (
-                  <label className="wide">
-                    New category name
-                    <input
+                  <Field label="New category name" className="col-span-full">
+                    <Input
                       value={d.newCategory}
                       onChange={(e) => updateAt(i, { newCategory: e.target.value })}
                       placeholder="e.g. Friends & Family"
                     />
-                  </label>
+                  </Field>
                 )}
                 {categories.length > 1 && (
-                  <div className="wide also-in">
-                    <span className="also-in-label">Also in (optional)</span>
-                    <div className="chip-row">
+                  <div className="col-span-full flex flex-col gap-1.5">
+                    <span className="text-[0.85rem] font-bold text-heading">Also in (optional)</span>
+                    <Segmented
+                      type="multiple"
+                      variant="chip"
+                      value={d.extraIds}
+                      onValueChange={(ids) => updateAt(i, { extraIds: ids })}
+                      aria-label="Also in (optional)"
+                    >
                       {categories
                         .filter((c) => c.id !== d.categoryChoice)
-                        .map((c) => {
-                          const on = d.extraIds.includes(c.id);
-                          return (
-                            <button
-                              key={c.id}
-                              type="button"
-                              className={`chip ${on ? "on" : ""}`}
-                              aria-pressed={on}
-                              onClick={() =>
-                                updateAt(i, {
-                                  extraIds: on ? d.extraIds.filter((id) => id !== c.id) : [...d.extraIds, c.id],
-                                })
-                              }
-                            >
-                              {c.name}
-                            </button>
-                          );
-                        })}
-                    </div>
+                        .map((c) => (
+                          <SegmentedItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SegmentedItem>
+                        ))}
+                    </Segmented>
                   </div>
                 )}
-                <label className="wide">
-                  Share with family
-                  <select
+                <Field label="Share with family" className="col-span-full">
+                  <Select
                     value={d.shareWithFamily ? "yes" : "no"}
-                    onChange={(e) => updateAt(i, { shareWithFamily: e.target.value === "yes" })}
+                    onValueChange={(v) => updateAt(i, { shareWithFamily: v === "yes" })}
                   >
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
-                  </select>
-                </label>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no">No</SelectItem>
+                      <SelectItem value="yes">Yes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
                 {d.shareWithFamily && (
-                  <label className="wide">
-                    Family member
-                    <select
-                      value={d.familyMemberName}
-                      onChange={(e) => updateAt(i, { familyMemberName: e.target.value })}
-                    >
-                      <option value="">Select a member</option>
-                      {familyMembers.map((member) => (
-                        <option key={member.id} value={member.name}>
-                          {member.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <Field label="Family member" className="col-span-full">
+                    <Select value={d.familyMemberName} onValueChange={(v) => updateAt(i, { familyMemberName: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a member" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {familyMembers
+                          .filter((member) => member.name)
+                          .map((member) => (
+                            <SelectItem key={member.id} value={member.name!}>
+                              {member.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
                 )}
               </div>
-              {!(parseAmount(d.amount) > 0) && <p className="error">Enter an amount greater than 0.</p>}
+              {!(parseAmount(d.amount) > 0) && <Message kind="error">Enter an amount greater than 0.</Message>}
             </div>
           ))}
 
-          <div className="actions">
-            <button className="btn primary" onClick={save} disabled={!allValid || status !== "idle"}>
+          <div className="mt-3 flex gap-2">
+            <Button onClick={save} disabled={!allValid || status !== "idle"}>
               {status === "saving" ? "Saving..." : count === 1 ? "Save" : `Save all ${count}`}
-            </button>
-            <button className="btn ghost" onClick={reset} disabled={status === "saving"}>
+            </Button>
+            <Button variant="secondary" onClick={reset} disabled={status === "saving"}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
-    </section>
+    </Card>
   );
 }

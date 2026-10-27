@@ -1,4 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Message } from "@/components/ui/message";
 import type { CategoryTotal } from "../../lib/analytics";
 import { formatMoney } from "../../lib/format";
 import { TOOLTIP_STYLE } from "./SpendOverTime";
@@ -9,11 +10,11 @@ interface Props {
 }
 
 export default function CategoryChart({ data, colors }: Props) {
-  if (data.length === 0) return <p className="empty">No spending in this period.</p>;
+  if (data.length === 0) return <Message kind="empty" className="py-8">No spending in this period.</Message>;
   const sum = data.reduce((s, d) => s + d.value, 0);
 
   return (
-    <div className="category-chart">
+    <div>
       <ResponsiveContainer width="100%" height={220}>
         <PieChart>
           <Pie
@@ -32,13 +33,13 @@ export default function CategoryChart({ data, colors }: Props) {
           <Tooltip formatter={(v: number) => formatMoney(v)} {...TOOLTIP_STYLE} />
         </PieChart>
       </ResponsiveContainer>
-      <ul className="legend">
+      <ul className="mt-1.5 flex max-h-[200px] flex-col gap-1.5 overflow-auto">
         {data.map((d) => (
-          <li key={d.name}>
-            <span className="dot" style={{ background: colors.get(d.name) }} />
-            <span className="legend-name">{d.name}</span>
-            <span className="legend-pct">{sum > 0 ? Math.round((d.value / sum) * 100) : 0}%</span>
-            <span className="legend-value">{formatMoney(d.value)}</span>
+          <li key={d.name} className="grid grid-cols-[12px_1fr_auto_auto] items-center gap-2.5 text-[0.9rem]">
+            <span className="size-2.5 rounded-full" style={{ background: colors.get(d.name) }} />
+            <span className="font-bold wrap-anywhere">{d.name}</span>
+            <span className="min-w-10 text-right text-muted-foreground">{sum > 0 ? Math.round((d.value / sum) * 100) : 0}%</span>
+            <span className="min-w-20 text-right tabular-nums">{formatMoney(d.value)}</span>
           </li>
         ))}
       </ul>

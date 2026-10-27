@@ -1,4 +1,11 @@
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm";
+import { Input } from "@/components/ui/input";
+import { List, ListEmoji, ListItem } from "@/components/ui/list";
+import { Message } from "@/components/ui/message";
 import type { Category } from "../hooks/useCategories";
 import { emojiFor } from "../lib/categories";
 
@@ -13,6 +20,7 @@ export default function CategoryList({ categories, loading, onRename, onDelete }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
 
   async function save(id: string) {
     const err = await onRename(id, draft);
@@ -24,20 +32,20 @@ export default function CategoryList({ categories, loading, onRename, onDelete }
   }
 
   return (
-    <section className="card">
-      <h2>Your categories {categories.length > 0 && <span className="count">{categories.length}</span>}</h2>
-      {loading && <p className="hint">Loading...</p>}
+    <Card>
+      <h2>Your categories {categories.length > 0 && <Badge variant="secondary">{categories.length}</Badge>}</h2>
+      {loading && <Message>Loading...</Message>}
       {!loading && categories.length === 0 && (
-        <p className="empty">No categories yet. Add your first one above ✨</p>
+        <Message kind="empty">No categories yet. Add your first one above ✨</Message>
       )}
-      {error && <p className="error">{error}</p>}
-      <ul className="cat-list">
+      {error && <Message kind="error">{error}</Message>}
+      <List>
         {categories.map((c) => (
-          <li key={c.id} className="cat">
-            <span className="emoji">{emojiFor(c.name)}</span>
+          <ListItem key={c.id}>
+            <ListEmoji>{emojiFor(c.name)}</ListEmoji>
             {editingId === c.id ? (
               <>
-                <input
+                <Input
                   autoFocus
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -47,18 +55,19 @@ export default function CategoryList({ categories, loading, onRename, onDelete }
                   }}
                   aria-label="Rename category"
                 />
-                <button className="icon-btn" onClick={() => save(c.id)} aria-label="Save name">
+                <Button variant="ghost" size="icon" onClick={() => save(c.id)} aria-label="Save name">
                   ✓
-                </button>
-                <button className="icon-btn" onClick={() => setEditingId(null)} aria-label="Cancel rename">
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => setEditingId(null)} aria-label="Cancel rename">
                   ✕
-                </button>
+                </Button>
               </>
             ) : (
               <>
-                <span className="name">{c.name}</span>
-                <button
-                  className="icon-btn"
+                <span className="flex-1 font-bold wrap-anywhere">{c.name}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   aria-label={`Rename ${c.name}`}
                   onClick={() => {
                     setEditingId(c.id);
@@ -67,21 +76,24 @@ export default function CategoryList({ categories, loading, onRename, onDelete }
                   }}
                 >
                   ✎
-                </button>
-                <button
-                  className="icon-btn danger"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:text-destructive"
                   aria-label={`Delete ${c.name}`}
-                  onClick={() => {
-                    if (confirm(`Delete "${c.name}"?`)) onDelete(c.id);
+                  onClick={async () => {
+                    if (await confirm({ title: `Delete "${c.name}"?` })) await onDelete(c.id);
                   }}
                 >
                   🗑
-                </button>
+                </Button>
               </>
             )}
-          </li>
+          </ListItem>
         ))}
-      </ul>
-    </section>
+      </List>
+      {confirmDialog}
+    </Card>
   );
 }

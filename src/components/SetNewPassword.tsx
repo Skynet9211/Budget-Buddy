@@ -1,5 +1,11 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Message } from "@/components/ui/message";
+import { Page } from "@/components/ui/page";
 
 /** Shown after a valid reset code (or reset link) so the user can choose a new password. */
 export default function SetNewPassword({ onDone }: { onDone: () => void }) {
@@ -23,42 +29,40 @@ export default function SetNewPassword({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <main className="page auth">
-      <div className="logo">🪙</div>
+    <Page className="pt-[calc(3rem+env(safe-area-inset-top))] text-center">
+      <div className="text-5xl">🪙</div>
       <h1>Choose a new password</h1>
-      <p className="subtitle">Pick something you'll remember (at least 6 characters).</p>
+      <Message>Pick something you'll remember (at least 6 characters).</Message>
 
-      <form className="card form" onSubmit={submit}>
-        <label>
-          New password
-          <input
-            type="password"
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-          />
-        </label>
-        <label>
-          Confirm password
-          <input
-            type="password"
-            required
-            minLength={6}
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            autoComplete="new-password"
-          />
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button className="btn primary" disabled={busy}>
-          {busy ? "Please wait..." : "Save password"}
-        </button>
-        <button type="button" className="btn link" onClick={() => supabase.auth.signOut()}>
-          Cancel
-        </button>
-      </form>
-    </main>
+      <Card asChild className="mt-2 flex flex-col gap-3 text-left">
+        <form onSubmit={submit}>
+          <Field label="New password" className="text-[0.9rem] text-foreground">
+            <Input
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </Field>
+          <Field label="Confirm password" className="text-[0.9rem] text-foreground">
+            <Input
+              type="password"
+              required
+              minLength={6}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              autoComplete="new-password"
+            />
+          </Field>
+          {error && <Message kind="error" className="mt-0">{error}</Message>}
+          <Button disabled={busy}>{busy ? "Please wait..." : "Save password"}</Button>
+          <Button type="button" variant="link" onClick={() => supabase.auth.signOut()}>
+            Cancel
+          </Button>
+        </form>
+      </Card>
+    </Page>
   );
 }

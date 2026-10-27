@@ -135,28 +135,39 @@ export function mix(a: string, b: string, t: number): string {
   return `#${ch(ar, br)}${ch(ag, bg)}${ch(ab, bb)}`;
 }
 
-/** The CSS variables for one palette in one mode. */
+/**
+ * The CSS variables for one palette in one mode. Names follow shadcn/ui's tokens (mapped to Tailwind
+ * colours in src/index.css); `--heading`, `--surface`, `--primary-hover` and the money colours are ours.
+ */
 export function buildVars(palette: Palette, resolved: Resolved): Record<string, string> {
   const c = palette[resolved];
   const s = SEMANTIC[resolved];
   const dark = resolved === "dark";
-  const [r, g, b] = hexToRgb(c.accent);
   const [sr, sg, sb] = hexToRgb(c.accentDark);
   return {
-    "--bg": c.bg,
+    "--background": c.bg,
+    "--foreground": c.text,
     "--card": c.card,
-    "--border": c.border,
-    "--accent": c.accent,
-    "--accent-dark": c.accentDark,
+    "--card-foreground": c.text,
+    "--popover": c.card,
+    "--popover-foreground": c.text,
+    "--primary": c.accent,
+    "--primary-foreground": "#ffffff",
     // Hover shade for filled accent buttons: darker on light, lighter on dark, white text stays readable.
-    "--accent-hover": dark ? mix(c.accent, "#ffffff", 0.15) : mix(c.accent, "#000000", 0.18),
-    "--accent-rgb": `${r}, ${g}, ${b}`,
-    "--text": c.text,
-    "--muted": c.muted,
-    "--tint": c.tint,
-    "--surface-2": c.surface2,
+    "--primary-hover": dark ? mix(c.accent, "#ffffff", 0.15) : mix(c.accent, "#000000", 0.18),
+    "--secondary": c.tint,
+    "--secondary-foreground": c.accentDark,
+    "--muted": c.tint,
+    "--muted-foreground": c.muted,
+    "--accent": c.tint,
+    "--accent-foreground": c.accentDark,
+    "--heading": c.accentDark,
+    "--surface": c.surface2,
+    "--border": c.border,
+    "--input": c.border,
+    "--ring": c.accent,
+    "--destructive": s.error,
     "--success": s.success,
-    "--error": s.error,
     "--debit-bg": s.debitBg,
     "--credit-bg": s.creditBg,
     "--credit": s.credit,

@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Message } from "@/components/ui/message";
 import type { Family, FamilyInvitation, FamilyMember } from "../types";
 
 interface FamilyPageProps {
@@ -129,63 +134,57 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
   }
 
   return (
-    <section className="card">
-      <h2>Family</h2>
-      {message && <p className={message.kind === "error" ? "error" : message.kind === "success" ? "success" : "info"}>{message.text}</p>}
+    <Card className="flex flex-col gap-3">
+      <h2 className="mb-0">Family</h2>
+      {message && <Message kind={message.kind} className="mt-0">{message.text}</Message>}
 
-      <form onSubmit={createFamily} className="family-form">
-        <label>
-          Create a family
-          <input value={familyName} onChange={(e) => setFamilyName(e.target.value)} placeholder="Family name" disabled={busy} />
-        </label>
-        <button className="btn primary" disabled={busy || !familyName.trim()}>
-          Create
-        </button>
+      <form onSubmit={createFamily} className="flex items-end gap-2">
+        <Field label="Create a family" className="flex-1">
+          <Input value={familyName} onChange={(e) => setFamilyName(e.target.value)} placeholder="Family name" disabled={busy} />
+        </Field>
+        <Button disabled={busy || !familyName.trim()}>Create</Button>
       </form>
 
-      <div className="family-panel">
-        <div>
-          <h3>Family members</h3>
-          {currentFamily ? (
-            <ul className="plain-list">
-              {members.length === 0 && <li>No family members yet.</li>}
-              {members.map((member) => (
-                <li key={member.id}>
-                  {member.user_id === currentFamily.owner_user_id ? "Owner" : "Member"} · {member.user_id}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="hint">Create or select a family to manage members.</p>
-          )}
-        </div>
+      <div>
+        <h3>Family members</h3>
+        {currentFamily ? (
+          <ul className="flex flex-col gap-1 text-[0.9rem] wrap-anywhere">
+            {members.length === 0 && <li className="text-muted-foreground">No family members yet.</li>}
+            {members.map((member) => (
+              <li key={member.id}>
+                {member.user_id === currentFamily.owner_user_id ? "Owner" : "Member"} · {member.user_id}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Message>Create or select a family to manage members.</Message>
+        )}
+      </div>
 
-        <div>
-          <h3>Invite by email</h3>
-          <form onSubmit={inviteMember} className="family-form">
-            <label>
-              Email address
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="friend@example.com"
-                disabled={busy || !selectedFamilyId}
-              />
-            </label>
-            <button className="btn" disabled={busy || !selectedFamilyId || !inviteEmail.trim()}>
-              Send invite
-            </button>
-          </form>
-        </div>
+      <div>
+        <h3>Invite by email</h3>
+        <form onSubmit={inviteMember} className="flex items-end gap-2">
+          <Field label="Email address" className="flex-1">
+            <Input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="friend@example.com"
+              disabled={busy || !selectedFamilyId}
+            />
+          </Field>
+          <Button variant="outline" disabled={busy || !selectedFamilyId || !inviteEmail.trim()}>
+            Send invite
+          </Button>
+        </form>
       </div>
 
       <div>
         <h3>Pending invites</h3>
         {invitations.length === 0 ? (
-          <p className="hint">No invites yet.</p>
+          <Message>No invites yet.</Message>
         ) : (
-          <ul className="plain-list">
+          <ul className="flex flex-col gap-1 text-[0.9rem] wrap-anywhere">
             {invitations.map((invitation) => (
               <li key={invitation.id}>
                 {invitation.email} · {invitation.status}
@@ -196,10 +195,8 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
       </div>
 
       {invitations.some((inv) => inv.email.toLowerCase() === email.toLowerCase() && inv.status === "pending") && (
-        <button className="btn primary" onClick={() => void acceptOwnInvite()}>
-          Accept invite to this family
-        </button>
+        <Button onClick={() => void acceptOwnInvite()}>Accept invite to this family</Button>
       )}
-    </section>
+    </Card>
   );
 }

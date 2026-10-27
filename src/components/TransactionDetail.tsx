@@ -1,5 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Message } from "@/components/ui/message";
+import { cn } from "@/lib/utils";
 import { paymentModeName } from "../lib/paymentModes";
 import { fetchTransaction, formatDate, formatMoney, type Transaction } from "../lib/transactions";
 import type { PaymentMode } from "../types";
@@ -23,9 +27,9 @@ function formatRecordedAt(iso: string): string {
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="txn-detail-row">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
+    <div className="grid grid-cols-[8.5rem_1fr] gap-2.5 border-b py-2 last:border-b-0">
+      <dt className="text-[0.85rem] text-muted-foreground">{label}</dt>
+      <dd className="m-0 wrap-anywhere">{children}</dd>
     </div>
   );
 }
@@ -58,27 +62,31 @@ export default function TransactionDetail({ transactionId, paymentModes }: Props
   }, [transactionId]);
 
   return (
-    <section className="card txn-detail">
-      <header className="txn-detail-head">
-        <Link to="/transactions" className="icon-btn appearance-back" aria-label="Back to transactions">
+    <Card>
+      <header className="mb-1.5 flex items-center gap-2.5">
+        <Link
+          to="/transactions"
+          className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "rounded-full bg-secondary text-heading")}
+          aria-label="Back to transactions"
+        >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M15 5l-7 7 7 7" />
           </svg>
         </Link>
-        <h2>Transaction</h2>
+        <h2 className="mb-0">Transaction</h2>
       </header>
 
-      {loading && <p className="hint">Loading...</p>}
-      {!loading && error && <p className="error">{error}</p>}
+      {loading && <Message>Loading...</Message>}
+      {!loading && error && <Message kind="error">{error}</Message>}
       {!loading && !error && !txn && (
-        <p className="empty">This transaction wasn't found. It may have been deleted.</p>
+        <Message kind="empty">This transaction wasn't found. It may have been deleted.</Message>
       )}
 
       {!loading && txn && (
-        <dl className="txn-detail-fields">
+        <dl className="m-0 flex flex-col gap-0.5">
           <Row label="Type">{txn.type === "debit" ? "Spent" : "Received"}</Row>
           <Row label="Amount">
-            <strong className={txn.type}>
+            <strong className={txn.type === "debit" ? "text-destructive" : "text-credit"}>
               {txn.type === "debit" ? "−" : "+"}
               {formatMoney(txn.amount, txn.currency)}
             </strong>
@@ -90,10 +98,10 @@ export default function TransactionDetail({ transactionId, paymentModes }: Props
           <Row label="Recorded at">{formatRecordedAt(txn.createdAt)}</Row>
           {txn.rawText ? <Row label="Original text">{txn.rawText}</Row> : null}
           <Row label="Transaction id">
-            <code className="txn-detail-id">{txn.id}</code>
+            <code className="text-[0.8rem] font-medium">{txn.id}</code>
           </Row>
         </dl>
       )}
-    </section>
+    </Card>
   );
 }

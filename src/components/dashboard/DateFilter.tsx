@@ -1,3 +1,6 @@
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { ALL_TIME_START, addDays, oneMonthAgo, toISO, todayISO } from "../../lib/dates";
 
 export type PresetId = "7d" | "1m" | "3m" | "ytd" | "all" | "custom";
@@ -43,23 +46,23 @@ interface Props {
 
 export default function DateFilter({ value, onChange }: Props) {
   return (
-    <div className="date-filter">
-      <div className="seg" role="group" aria-label="Date range">
+    <div className="flex flex-col gap-3">
+      <Segmented
+        type="single"
+        className="self-start"
+        value={value.preset === "custom" ? "" : value.preset}
+        onValueChange={(v) => v && onChange(rangeForPreset(v as Exclude<PresetId, "custom">))}
+        aria-label="Date range"
+      >
         {PRESETS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className={value.preset === p.id ? "on" : ""}
-            onClick={() => onChange(rangeForPreset(p.id))}
-          >
+          <SegmentedItem key={p.id} value={p.id}>
             {p.label}
-          </button>
+          </SegmentedItem>
         ))}
-      </div>
-      <div className="custom-range">
-        <label>
-          From
-          <input
+      </Segmented>
+      <div className="grid grid-cols-2 gap-2.5">
+        <Field label="From" className="text-[0.8rem]">
+          <Input
             type="date"
             value={value.from}
             max={value.to}
@@ -67,10 +70,9 @@ export default function DateFilter({ value, onChange }: Props) {
               e.target.value && onChange({ preset: "custom", from: e.target.value, to: value.to })
             }
           />
-        </label>
-        <label>
-          To
-          <input
+        </Field>
+        <Field label="To" className="text-[0.8rem]">
+          <Input
             type="date"
             value={value.to}
             min={value.from}
@@ -79,7 +81,7 @@ export default function DateFilter({ value, onChange }: Props) {
               e.target.value && onChange({ preset: "custom", from: value.from, to: e.target.value })
             }
           />
-        </label>
+        </Field>
       </div>
     </div>
   );
