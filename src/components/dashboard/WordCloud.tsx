@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Message } from "@/components/ui/message";
 import type { CategoryTotal } from "../../lib/analytics";
 import { formatMoney } from "../../lib/format";
 
@@ -32,15 +33,15 @@ export default function WordCloud({ data, colors }: Props) {
       .sort((a, b) => a.order - b.order);
   }, [data]);
 
-  if (words.length === 0) return <p className="empty">No spending in this period.</p>;
+  if (words.length === 0) return <Message kind="empty" className="py-8">No spending in this period.</Message>;
 
   return (
-    <div className="word-cloud" role="list">
+    <div className="flex min-h-[180px] flex-wrap items-center justify-center gap-x-4 gap-y-0.5 p-2 leading-[1.15]" role="list">
       {words.map((w) => (
         <span
           key={w.name}
           role="listitem"
-          className="word"
+          className="cursor-default font-extrabold transition-transform duration-150 hover:scale-[1.08] motion-reduce:transition-none"
           style={{ fontSize: w.size, color: colors.get(w.name) }}
           title={`${w.name}: ${formatMoney(w.value)} (${w.count} expense${w.count === 1 ? "" : "s"})`}
         >

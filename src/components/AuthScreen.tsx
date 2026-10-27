@@ -1,5 +1,11 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Message } from "@/components/ui/message";
+import { Page } from "@/components/ui/page";
 
 type Mode = "signin" | "signup" | "forgot" | "code";
 
@@ -65,80 +71,73 @@ export default function AuthScreen() {
   const submitLabel = { signin: "Sign in", signup: "Create account", forgot: "Send code", code: "Verify code" }[mode];
 
   return (
-    <main className="page auth">
-      <div className="logo">🪙</div>
+    <Page className="pt-[calc(3rem+env(safe-area-inset-top))] text-center">
+      <div className="text-5xl">🪙</div>
       <h1>Budget Buddy</h1>
-      <p className="subtitle">{subtitle}</p>
+      <Message>{subtitle}</Message>
 
-      <form className="card form" onSubmit={submit}>
-        <label>
-          Email
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            readOnly={mode === "code"}
-          />
-        </label>
-        {showPassword && (
-          <label>
-            Password
-            <input
-              type="password"
+      <Card asChild className="mt-2 flex flex-col gap-3 text-left">
+        <form onSubmit={submit}>
+          <Field label="Email" className="text-[0.9rem] text-foreground">
+            <Input
+              type="email"
               required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              readOnly={mode === "code"}
             />
-          </label>
-        )}
-        {mode === "code" && (
-          <label>
-            Code
-            <input
-              type="text"
-              required
-              inputMode="numeric"
-              pattern="[0-9]{6,8}"
-              maxLength={8}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              autoComplete="one-time-code"
-            />
-          </label>
-        )}
-        {message && <p className={message.kind === "error" ? "error" : "info"}>{message.text}</p>}
-        <button className="btn primary" disabled={busy}>
-          {busy ? "Please wait..." : submitLabel}
-        </button>
+          </Field>
+          {showPassword && (
+            <Field label="Password" className="text-[0.9rem] text-foreground">
+              <Input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              />
+            </Field>
+          )}
+          {mode === "code" && (
+            <Field label="Code" className="text-[0.9rem] text-foreground">
+              <Input
+                type="text"
+                required
+                inputMode="numeric"
+                pattern="[0-9]{6,8}"
+                maxLength={8}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                autoComplete="one-time-code"
+              />
+            </Field>
+          )}
+          {message && <Message kind={message.kind} className="mt-0">{message.text}</Message>}
+          <Button disabled={busy}>{busy ? "Please wait..." : submitLabel}</Button>
 
-        {mode === "signin" && DEMO_EMAIL && DEMO_PASSWORD && (
-          <button type="button" className="btn" disabled={busy} onClick={signInDemo}>
-            Try the demo account
-          </button>
-        )}
+          {mode === "signin" && DEMO_EMAIL && DEMO_PASSWORD && (
+            <Button type="button" variant="outline" disabled={busy} onClick={signInDemo}>
+              Try the demo account
+            </Button>
+          )}
 
-        {mode === "signin" && (
-          <button type="button" className="btn link" onClick={() => go("forgot")}>
-            Forgot password?
-          </button>
-        )}
-        {mode === "code" && (
-          <button type="button" className="btn link" onClick={() => go("forgot")}>
-            Didn't get it? Send a new code
-          </button>
-        )}
-        <button
-          type="button"
-          className="btn link"
-          onClick={() => go(mode === "signin" ? "signup" : "signin")}
-        >
-          {mode === "signin" ? "New here? Create an account" : mode === "signup" ? "Have an account? Sign in" : "Back to sign in"}
-        </button>
-      </form>
-    </main>
+          {mode === "signin" && (
+            <Button type="button" variant="link" onClick={() => go("forgot")}>
+              Forgot password?
+            </Button>
+          )}
+          {mode === "code" && (
+            <Button type="button" variant="link" onClick={() => go("forgot")}>
+              Didn't get it? Send a new code
+            </Button>
+          )}
+          <Button type="button" variant="link" onClick={() => go(mode === "signin" ? "signup" : "signin")}>
+            {mode === "signin" ? "New here? Create an account" : mode === "signup" ? "Have an account? Sign in" : "Back to sign in"}
+          </Button>
+        </form>
+      </Card>
+    </Page>
   );
 }

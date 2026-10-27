@@ -18,6 +18,14 @@ import SetNewPassword from "./components/SetNewPassword";
 import CategoryInput from "./components/CategoryInput";
 import CategoryList from "./components/CategoryList";
 import FamilyPage from "./components/FamilyPage";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
+import { Message } from "@/components/ui/message";
+import { Page } from "@/components/ui/page";
+import { segmentedItemVariants, segmentedVariants } from "@/components/ui/segmented";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 type HomeContext = {
   userId: string;
@@ -49,45 +57,51 @@ function Home({ userId, email, families, selectedFamilyId, setSelectedFamilyId }
   const [reviewing, setReviewing] = useState(false);
 
   return (
-    <main className="page">
-      <header className="top">
+    <Page>
+      <header className="flex items-center justify-between">
         <div>
           <h1>Budget Buddy</h1>
-          <p className="subtitle">{email}</p>
+          <Message>{email}</Message>
         </div>
-        <button className="btn ghost small" onClick={() => supabase.auth.signOut()}>
+        <Button variant="secondary" size="sm" onClick={() => supabase.auth.signOut()}>
           Sign out
-        </button>
+        </Button>
       </header>
 
       {families.length > 0 && (
-        <div className="card family-switcher">
-          <label>
-            Family
-            <select value={selectedFamilyId ?? ""} onChange={(e) => setSelectedFamilyId(e.target.value || null)}>
-              {families.map((family) => (
-                <option key={family.id} value={family.id}>
-                  {family.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <Card asChild>
+          <div>
+            <Field label="Family">
+              <Select value={selectedFamilyId ?? ""} onValueChange={(v) => setSelectedFamilyId(v || null)}>
+                <SelectTrigger className="pr-5">
+                  <SelectValue placeholder="Choose a family" />
+                </SelectTrigger>
+                <SelectContent>
+                  {families.map((family) => (
+                    <SelectItem key={family.id} value={family.id}>
+                      {family.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        </Card>
       )}
 
       {!reviewing && (
-        <nav className="tabs" aria-label="Sections">
+        <nav className={cn(segmentedVariants(), "flex-nowrap rounded-lg")} aria-label="Sections">
           {TABS.map((t) => (
-            <NavLink key={t.to} to={t.to} className={({ isActive }) => (isActive ? "on" : "")}>
+            <NavLink key={t.to} to={t.to} className={segmentedItemVariants({ size: "md" })}>
               {t.label}
             </NavLink>
           ))}
         </nav>
       )}
-      {categories.error && <p className="error">{categories.error}</p>}
-      {txns.error && <p className="error">{txns.error}</p>}
+      {categories.error && <Message kind="error">{categories.error}</Message>}
+      {txns.error && <Message kind="error">{txns.error}</Message>}
       <Outlet context={{ userId, email, families, selectedFamilyId, setSelectedFamilyId, categories, txns, paymentModes, reviewing, setReviewing } satisfies HomeContext} />
-    </main>
+    </Page>
   );
 }
 
@@ -97,8 +111,8 @@ function DashboardPage() {
   const paymentFlows = usePaymentFlows(userId, true);
   return (
     <>
-      {spending.error && <p className="error">{spending.error}</p>}
-      {paymentFlows.error && <p className="error">{paymentFlows.error}</p>}
+      {spending.error && <Message kind="error">{spending.error}</Message>}
+      {paymentFlows.error && <Message kind="error">{paymentFlows.error}</Message>}
       <Dashboard
         expenses={spending.expenses}
         loading={spending.loading}
@@ -133,7 +147,7 @@ function TransactionsPage() {
           onDelete={txns.remove}
         />
       )}
-      {familyMembers === 0 && selectedFamilyId && <p className="hint">This family is selected, but no family members were loaded yet.</p>}
+      {familyMembers === 0 && selectedFamilyId && <Message>This family is selected, but no family members were loaded yet.</Message>}
     </>
   );
 }
@@ -184,7 +198,7 @@ function AppRoutes({ userId, email, families, selectedFamilyId, setSelectedFamil
 
 export default function App() {
   const { session, loading, recovery, finishRecovery, families, selectedFamilyId, setSelectedFamilyId, refreshFamilies } = useSession();
-  if (loading) return <main className="page"><p className="hint">Loading...</p></main>;
+  if (loading) return <Page><Message>Loading...</Message></Page>;
   if (!session) return <AuthScreen />;
   if (recovery) return <SetNewPassword onDone={finishRecovery} />;
   return <AppRoutes userId={session.user.id} email={session.user.email} families={families} selectedFamilyId={selectedFamilyId} setSelectedFamilyId={setSelectedFamilyId} refreshFamilies={refreshFamilies} />;

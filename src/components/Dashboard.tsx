@@ -18,6 +18,22 @@ import DateFilter, { defaultRange, type DateRange } from "./dashboard/DateFilter
 import PaymentModeChart from "./dashboard/PaymentModeChart";
 import SpendOverTime, { GranularityToggle } from "./dashboard/SpendOverTime";
 import WordCloud from "./dashboard/WordCloud";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Message } from "@/components/ui/message";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
+function Stat({ label, value, sub, big = false, className }: { label: string; value: string; sub: string; big?: boolean; className?: string }) {
+  return (
+    <Card asChild className={cn("flex min-w-0 flex-col gap-0.5", className)}>
+      <div>
+        <span className="text-[0.8rem] font-bold text-muted-foreground">{label}</span>
+        <span className={cn("font-extrabold text-heading wrap-anywhere", big ? "text-[2rem]" : "text-[1.2rem]")}>{value}</span>
+        <span className="text-[0.8rem] text-muted-foreground wrap-anywhere">{sub}</span>
+      </div>
+    </Card>
+  );
+}
 
 interface Props {
   /** Money-out only. An expense may list several categories. */
@@ -66,81 +82,76 @@ export default function Dashboard({ expenses, loading, flows, paymentModes, flow
   const hasMulti = filtered.some((e) => e.categories.length > 1);
 
   return (
-    <div className="dashboard">
-      <section className="card">
+    <div className="flex flex-col gap-4">
+      <Card>
         <DateFilter value={range} onChange={setRange} />
-        <p className="hint">
+        <Message className="mt-2.5">
           {range.preset === "all"
             ? "All time"
             : `${formatFullDate(range.from)} – ${formatFullDate(range.to)}`}
-        </p>
+        </Message>
+      </Card>
+
+      <section className="grid grid-cols-2 gap-3">
+        <Stat
+          big
+          className="col-span-full"
+          label="Total spending"
+          value={loading ? "…" : formatMoneyShort(total)}
+          sub={`${filtered.length} transaction${filtered.length === 1 ? "" : "s"}`}
+        />
+        <Stat label="Per day" value={loading ? "…" : formatMoneyShort(total / spanDays)} sub={`over ${spanDays} days`} />
+        <Stat label="Top category" value={top ? top.name : "—"} sub={top ? formatMoney(top.value) : "No data"} />
       </section>
 
-      <section className="dash-stats">
-        <div className="card stat total">
-          <span className="stat-label">Total spending</span>
-          <span className="stat-value">{loading ? "…" : formatMoneyShort(total)}</span>
-          <span className="stat-sub">
-            {filtered.length} transaction{filtered.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        <div className="card stat">
-          <span className="stat-label">Per day</span>
-          <span className="stat-value small">{loading ? "…" : formatMoneyShort(total / spanDays)}</span>
-          <span className="stat-sub">over {spanDays} days</span>
-        </div>
-        <div className="card stat">
-          <span className="stat-label">Top category</span>
-          <span className="stat-value small">{top ? top.name : "—"}</span>
-          <span className="stat-sub">{top ? formatMoney(top.value) : "No data"}</span>
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="card-head">
+      <Card>
+        <CardHeader>
           <h2>By category</h2>
           {hasMulti && (
-            <label className="mode-select" title="How a transaction with several categories is counted">
-              <select value={mode} onChange={(e) => setMode(e.target.value as MultiCategoryMode)}>
-                <option value="split">Split evenly</option>
-                <option value="full">Full amount in each</option>
-              </select>
-            </label>
+            <Select value={mode} onValueChange={(v) => setMode(v as MultiCategoryMode)}>
+              <SelectTrigger size="sm" className="w-auto" title="How a transaction with several categories is counted">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="split">Split evenly</SelectItem>
+                <SelectItem value="full">Full amount in each</SelectItem>
+              </SelectContent>
+            </Select>
           )}
-        </div>
+        </CardHeader>
         <CategoryChart data={byCategory} colors={colors} />
         {hasMulti && (
-          <p className="hint">
+          <Message className="mt-2.5">
             {mode === "split"
               ? "Transactions in several categories are split evenly between them."
               : "Transactions in several categories count in full in each, so categories add up to more than the total."}
-          </p>
+          </Message>
         )}
-      </section>
+      </Card>
 
-      <section className="card">
-        <div className="card-head">
+      <Card>
+        <CardHeader>
           <h2>By mode of payment</h2>
-        </div>
-        {flowsLoading ? <p className="hint">Loading...</p> : <PaymentModeChart data={byMode} />}
-        <p className="hint">Money going out (debited) and coming in (credited) through each mode.</p>
-      </section>
+        </CardHeader>
+        {flowsLoading ? <Message>Loading...</Message> : <PaymentModeChart data={byMode} />}
+        <Message className="mt-2.5">Money going out (debited) and coming in (credited) through each mode.</Message>
+      </Card>
 
-      <section className="card">
-        <div className="card-head">
+      <Card>
+        <CardHeader>
           <h2>Category cloud</h2>
-        </div>
+        </CardHeader>
         <WordCloud data={byCategory} colors={colors} />
-        <p className="hint">Bigger word = more spent in that category.</p>
-      </section>
+        <Message className="mt-2.5">Bigger word = more spent in that category.</Message>
+      </Card>
 
-      <section className="card">
-        <div className="card-head">
+      <Card>
+        <CardHeader>
           <h2>Spending over time</h2>
           <GranularityToggle value={granularity} onChange={setGranularity} />
-        </div>
+        </CardHeader>
         <SpendOverTime data={series} granularity={granularity} />
-      </section>
+      </Card>
     </div>
   );
 }

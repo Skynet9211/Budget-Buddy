@@ -1,8 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type JSX } from "react";
 import { createPortal } from "react-dom";
 import { useAppearanceOpen, useCloseAppearance } from "../hooks/useAppearanceRoute";
 import { useTheme, type Mode } from "../hooks/useTheme";
 import { PALETTES } from "../lib/themes";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Message } from "@/components/ui/message";
+import { Page } from "@/components/ui/page";
+import { RadioGroup, RadioGroupCard, RadioGroupIndicator } from "@/components/ui/radio-group";
+import { segmentedItemVariants } from "@/components/ui/segmented";
 
 const MODES: { id: Mode; label: string; hint: string; icon: JSX.Element }[] = [
   {
@@ -66,82 +72,111 @@ export default function AppearancePage() {
 
   // Portalled to <body> so the app root can be made inert while the page is open.
   return createPortal(
-    <div className="appearance" role="dialog" aria-modal="true" aria-labelledby="appearance-title">
-      <div className="appearance-inner">
-        <header className="appearance-head">
-          <button ref={backRef} type="button" className="icon-btn appearance-back" onClick={closeAppearance} aria-label="Back">
+    <div
+      className="fixed inset-0 z-[1100] animate-appear-in overflow-y-auto bg-background motion-reduce:animate-none"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="appearance-title"
+    >
+      <Page className="pb-[calc(2rem+env(safe-area-inset-bottom))]">
+        <header className="flex items-center gap-2.5">
+          <Button
+            ref={backRef}
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="rounded-full bg-secondary text-heading"
+            onClick={closeAppearance}
+            aria-label="Back"
+          >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M15 5l-7 7 7 7" />
             </svg>
-          </button>
+          </Button>
           <div>
             <h1 id="appearance-title">Appearance</h1>
-            <p className="subtitle">Pick a mode and a colour theme.</p>
+            <Message>Pick a mode and a colour theme.</Message>
           </div>
         </header>
 
-        <section className="card">
+        <Card>
           <h2>Mode</h2>
-          <fieldset className="opt-group modes">
-            <legend className="sr-only">Theme mode</legend>
+          <RadioGroup
+            className="mt-1.5 grid-cols-3 gap-2.5"
+            value={mode}
+            onValueChange={(v) => setMode(v as Mode)}
+            aria-label="Theme mode"
+          >
             {MODES.map((m) => (
-              <label key={m.id} className="opt">
-                <input type="radio" name="mode" className="sr-only" checked={mode === m.id} onChange={() => setMode(m.id)} />
-                <span className="opt-box mode-box">
-                  {m.icon}
-                  <strong>{m.label}</strong>
-                  <small>{m.hint}</small>
-                </span>
-              </label>
+              <RadioGroupCard key={m.id} value={m.id}>
+                <span className="text-heading">{m.icon}</span>
+                <strong>{m.label}</strong>
+                <small className="text-xs text-muted-foreground">{m.hint}</small>
+              </RadioGroupCard>
             ))}
-          </fieldset>
-        </section>
+          </RadioGroup>
+        </Card>
 
-        <section className="card">
+        <Card>
           <h2>Colour theme</h2>
-          <fieldset className="opt-group palettes">
-            <legend className="sr-only">Colour theme</legend>
+          <RadioGroup
+            className="mt-1.5 grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2.5"
+            value={palette}
+            onValueChange={setPalette}
+            aria-label="Colour theme"
+          >
             {PALETTES.map((p) => {
               const c = p[resolved]; // preview in the mode that is currently on screen
               return (
-                <label key={p.id} className="opt">
-                  <input type="radio" name="palette" className="sr-only" checked={palette === p.id} onChange={() => setPalette(p.id)} />
-                  <span className="opt-box palette-box">
-                    <span className="swatch" style={{ background: c.bg, borderColor: c.border }} aria-hidden="true">
-                      <span className="swatch-card" style={{ background: c.card, borderColor: c.border }}>
-                        <span className="swatch-line" style={{ background: c.text }} />
-                        <span className="swatch-line short" style={{ background: c.muted }} />
-                      </span>
-                      <span className="swatch-dot" style={{ background: c.accent }} />
+                <RadioGroupCard key={p.id} value={p.id}>
+                  <span
+                    className="relative block h-16 w-full overflow-hidden rounded-sm border"
+                    style={{ background: c.bg, borderColor: c.border }}
+                    aria-hidden="true"
+                  >
+                    <span
+                      className="absolute inset-y-2 right-[26px] left-2 flex flex-col justify-center gap-[5px] rounded-[7px] border px-[7px]"
+                      style={{ background: c.card, borderColor: c.border }}
+                    >
+                      <span className="block h-[5px] rounded-[3px] opacity-85" style={{ background: c.text }} />
+                      <span className="block h-[5px] w-[55%] rounded-[3px] opacity-85" style={{ background: c.muted }} />
                     </span>
-                    <strong>{p.name}</strong>
-                    <span className="opt-check" aria-hidden="true">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12l5 5 9-10" />
-                      </svg>
-                    </span>
+                    <span className="absolute right-1.5 bottom-2 size-3.5 rounded-full" style={{ background: c.accent }} />
                   </span>
-                </label>
+                  <strong>{p.name}</strong>
+                  <RadioGroupIndicator
+                    className="absolute top-1.5 right-1.5 grid size-[22px] place-items-center rounded-full bg-primary text-primary-foreground"
+                    aria-hidden="true"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12l5 5 9-10" />
+                    </svg>
+                  </RadioGroupIndicator>
+                </RadioGroupCard>
               );
             })}
-          </fieldset>
-        </section>
+          </RadioGroup>
+        </Card>
 
-        <section className="card appearance-preview">
+        <Card>
           <h2>Preview</h2>
-          <p className="hint">This is how buttons, tags and amounts will look.</p>
-          <div className="actions">
-            <button type="button" className="btn primary">Primary</button>
-            <button type="button" className="btn ghost">Secondary</button>
+          <Message>This is how buttons, tags and amounts will look.</Message>
+          <div className="mt-3 flex gap-2">
+            <Button type="button">Primary</Button>
+            <Button type="button" variant="secondary">
+              Secondary
+            </Button>
           </div>
-          <div className="chip-row" style={{ marginTop: "0.8rem" }}>
-            <span className="chip on">Groceries</span>
-            <span className="chip">Travel</span>
-            <span className="debit">-₹450</span>
-            <span className="credit">+₹1,200</span>
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
+            <span data-state="on" className={segmentedItemVariants({ variant: "chip" })}>
+              Groceries
+            </span>
+            <span className={segmentedItemVariants({ variant: "chip" })}>Travel</span>
+            <span className="text-destructive">-₹450</span>
+            <span className="text-credit">+₹1,200</span>
           </div>
-        </section>
-      </div>
+        </Card>
+      </Page>
     </div>,
     document.body,
   );

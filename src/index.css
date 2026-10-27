@@ -1,0 +1,147 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* useTheme puts data-theme="dark" on <html>; make Tailwind's dark: variant follow it. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+/* The selected item of a segmented control: a Radix toggle, or the current router NavLink. */
+@custom-variant on (&:is([data-state=on], [aria-current=page]));
+
+/*
+ * These are only the fallback (Mocha) values. The active palette is written onto <html> as inline
+ * custom properties by src/hooks/useTheme.ts, using buildVars() in src/lib/themes.ts.
+ */
+:root {
+  --background: #f5efe6;
+  --foreground: #4a3b2e;
+  --card: #fbf7f0;
+  --card-foreground: #4a3b2e;
+  --popover: #fbf7f0;
+  --popover-foreground: #4a3b2e;
+  --primary: #b08968;
+  --primary-foreground: #ffffff;
+  --primary-hover: #8c6a4a;
+  --secondary: #efe3d2;
+  --secondary-foreground: #8c6a4a;
+  --muted: #efe3d2;
+  --muted-foreground: #8a7766;
+  --accent: #efe3d2;
+  --accent-foreground: #8c6a4a;
+  --heading: #8c6a4a;
+  --surface: #fff9f0;
+  --border: #e4d8c6;
+  --input: #e4d8c6;
+  --ring: #b08968;
+  --destructive: #c0604a;
+  --success: #7d9b76;
+  --debit-bg: #f6e1db;
+  --credit-bg: #e3ecde;
+  --credit: #5f7f58;
+  --shadow: 0 2px 10px rgba(110, 80, 50, 0.08);
+  --radius: 1rem;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --background: #1d1814;
+  --foreground: #f0e7dc;
+  --card: #29221c;
+  --card-foreground: #f0e7dc;
+  --popover: #29221c;
+  --popover-foreground: #f0e7dc;
+  --primary-hover: #c79d77;
+  --secondary: #3a3027;
+  --secondary-foreground: #e2c3a4;
+  --muted: #3a3027;
+  --muted-foreground: #a99b8c;
+  --accent: #3a3027;
+  --accent-foreground: #e2c3a4;
+  --heading: #e2c3a4;
+  --surface: #332b23;
+  --border: #40362c;
+  --input: #40362c;
+  --destructive: #e5836d;
+  --success: #8fb287;
+  --debit-bg: #4a2a23;
+  --credit-bg: #2b3a27;
+  --credit: #9bc193;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-heading: var(--heading);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-debit-bg: var(--debit-bg);
+  --color-credit-bg: var(--credit-bg);
+  --color-credit: var(--credit);
+
+  /* 10 / 12 / 14 / 16px: inner pills, controls, list rows, cards. */
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: calc(var(--radius) - 2px);
+  --radius-xl: var(--radius);
+
+  --shadow-card: var(--shadow);
+  --shadow-fab: 0 3px 5px -1px rgba(0, 0, 0, 0.2), 0 6px 10px 0 rgba(0, 0, 0, 0.14), 0 1px 18px 0 rgba(0, 0, 0, 0.12);
+  --shadow-fab-hover: 0 5px 5px -3px rgba(0, 0, 0, 0.2), 0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 2px rgba(0, 0, 0, 0.12);
+
+  --animate-mic-pulse: mic-pulse 1.3s infinite;
+  --animate-voice-pulse: voice-pulse 1.4s infinite;
+  --animate-appear-in: appear-in 0.18s ease-out;
+
+  @keyframes mic-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(192, 96, 74, 0.5); }
+    70% { box-shadow: 0 0 0 14px rgba(192, 96, 74, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(192, 96, 74, 0); }
+  }
+  @keyframes voice-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(192, 96, 74, 0.6); }
+    70% { box-shadow: 0 0 0 34px rgba(192, 96, 74, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(192, 96, 74, 0); }
+  }
+  @keyframes appear-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply m-0 bg-background font-sans text-foreground antialiased;
+  }
+  h1, h2, h3 {
+    @apply m-0 text-heading;
+  }
+  h1 { @apply text-[1.7rem] font-extrabold; }
+  h2 { @apply mb-1.5 flex items-center gap-2 text-[1.15rem] font-bold; }
+  h3 { @apply mt-2.5 mb-1.5 text-[0.95rem] font-bold; }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

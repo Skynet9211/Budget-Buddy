@@ -2,7 +2,11 @@ import { useRef, useState } from "react";
 import { canRecord, startRecording, type Recording } from "../lib/recorder";
 import { extractFromAudio, extractFromText } from "../lib/extractCategories";
 import { normalizeName } from "../lib/categories";
-import RecordingInput from "./RecordingInput";
+import MicButton from "./MicButton";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Message } from "@/components/ui/message";
 
 interface Props {
   existing: string[];
@@ -97,14 +101,15 @@ export default function CategoryInput({ existing, onSave }: Props) {
   }
 
   return (
-    <section className="card">
+    <Card>
       <h2>Add categories</h2>
-      <p className="hint">
+      <Message>
         Type or tap the mic and say things like <em>“groceries, petrol and eating out”</em>.
-      </p>
+      </Message>
 
-      {!suggestions && (
-        <RecordingInput
+      <form className="mt-3 flex items-center gap-2" onSubmit={submitText}>
+        <Input
+          type="text"
           value={text}
           onChange={setText}
           placeholder="e.g. Groceries, Rent, Netflix"
@@ -116,33 +121,46 @@ export default function CategoryInput({ existing, onSave }: Props) {
           onMicClick={toggleMic}
           micDisabled={status === "thinking"}
         />
-      )}
+        <Button disabled={!text.trim() || status !== "idle"}>Add</Button>
+        {micAvailable && (
+          <MicButton
+            live={status === "recording"}
+            onClick={toggleMic}
+            disabled={status === "thinking"}
+            aria-label={status === "recording" ? "Stop recording" : "Start voice input"}
+            title={status === "recording" ? "Tap to stop" : "Tap to speak"}
+          >
+            {status === "recording" ? "■" : "🎤"}
+          </MicButton>
+        )}
+      </form>
 
-      {status === "recording" && <p className="info">Listening... tap ■ when you're done.</p>}
-      {status === "thinking" && <p className="info">Working on it...</p>}
-      {!micAvailable && <p className="hint">Voice input isn't available on this device, so typing only.</p>}
-      {error && <p className="error">{error}</p>}
-      {notice && <p className="success">{notice}</p>}
+      {status === "recording" && <Message kind="info">Listening... tap ■ when you're done.</Message>}
+      {status === "thinking" && <Message kind="info">Working on it...</Message>}
+      {!micAvailable && <Message>Voice input isn't available on this device, so typing only.</Message>}
+      {error && <Message kind="error">{error}</Message>}
+      {notice && <Message kind="success">{notice}</Message>}
 
       {suggestions && (
-        <div className="confirm">
+        <div className="mt-3 border-t border-dashed pt-2.5">
           {transcript && (
-            <p className="hint">
+            <Message>
               You said: <em>“{transcript}”</em>
-            </p>
+            </Message>
           )}
           <h3>Check before saving</h3>
-          <ul>
+          <ul className="flex flex-col gap-2">
             {suggestions.map((s, i) => (
-              <li key={i}>
-                <input
+              <li key={i} className="flex items-center gap-1.5">
+                <Input
                   value={s}
                   onChange={(e) => setSuggestions(suggestions.map((v, j) => (j === i ? e.target.value : v)))}
                   aria-label={`Category ${i + 1}`}
                 />
-                <button
+                <Button
                   type="button"
-                  className="icon-btn"
+                  variant="ghost"
+                  size="icon"
                   aria-label={`Remove ${s}`}
                   onClick={() => {
                     const next = suggestions.filter((_, j) => j !== i);
@@ -150,20 +168,18 @@ export default function CategoryInput({ existing, onSave }: Props) {
                   }}
                 >
                   ✕
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
-          <div className="actions">
-            <button className="btn primary" onClick={confirm}>
-              Save {suggestions.length > 1 ? "all" : ""}
-            </button>
-            <button className="btn ghost" onClick={reset}>
+          <div className="mt-3 flex gap-2">
+            <Button onClick={confirm}>Save {suggestions.length > 1 ? "all" : ""}</Button>
+            <Button variant="secondary" onClick={reset}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
-    </section>
+    </Card>
   );
 }

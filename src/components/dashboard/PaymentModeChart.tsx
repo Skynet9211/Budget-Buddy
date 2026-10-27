@@ -1,53 +1,62 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Badge } from "@/components/ui/badge";
+import { Message } from "@/components/ui/message";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { PaymentModeTotal } from "../../lib/analytics";
 import { formatMoney, formatMoneyCompact } from "../../lib/format";
-import { TOOLTIP_STYLE } from "./SpendOverTime";
+import { AXIS_TICK, BAR_CURSOR, GRID_STROKE, TOOLTIP_STYLE } from "./SpendOverTime";
 
-/**
- * Money out (debited) and money in (credited) for each mode of payment. The bar colours are set in
- * dashboard.css (`.debit-bar` / `.credit-bar`) so they follow the theme.
- */
+/** Money out (debited) and money in (credited) for each mode of payment. Red = debited, green = credited. */
 export default function PaymentModeChart({ data }: { data: PaymentModeTotal[] }) {
-  if (data.length === 0) return <p className="empty">No transactions in this period.</p>;
+  if (data.length === 0) return <Message kind="empty" className="py-8">No transactions in this period.</Message>;
 
   return (
-    <div className="payment-chart">
+    <div>
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted)" }} interval={0} />
-          <YAxis tick={{ fontSize: 11, fill: "var(--muted)" }} tickFormatter={formatMoneyCompact} width={56} />
-          <Tooltip
-            formatter={(v: number) => formatMoney(v)}
-            cursor={{ fill: "rgba(var(--accent-rgb), 0.12)" }}
-            {...TOOLTIP_STYLE}
-          />
-          <Legend wrapperStyle={{ fontSize: 12, color: "var(--muted)" }} />
-          <Bar dataKey="debit" name="Debited" className="debit-bar" fill="var(--error)" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="credit" name="Credited" className="credit-bar" fill="var(--credit)" radius={[4, 4, 0, 0]} />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={GRID_STROKE} />
+          <XAxis dataKey="name" tick={AXIS_TICK} interval={0} />
+          <YAxis tick={AXIS_TICK} tickFormatter={formatMoneyCompact} width={56} />
+          <Tooltip formatter={(v: number) => formatMoney(v)} cursor={BAR_CURSOR} {...TOOLTIP_STYLE} />
+          <Legend wrapperStyle={{ fontSize: 12, color: "var(--muted-foreground)" }} />
+          <Bar dataKey="debit" name="Debited" fill="var(--destructive)" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="credit" name="Credited" fill="var(--credit)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
 
-      <table className="mode-table">
-        <thead>
-          <tr>
-            <th scope="col">Mode</th>
-            <th scope="col" className="num">Debited</th>
-            <th scope="col" className="num">Credited</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table className="mt-2.5 text-[0.9rem]">
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead scope="col" className="h-auto px-1 py-1.5 text-[0.8rem] font-bold text-muted-foreground">
+              Mode
+            </TableHead>
+            <TableHead scope="col" className="h-auto px-1 py-1.5 text-right text-[0.8rem] font-bold text-muted-foreground">
+              Debited
+            </TableHead>
+            <TableHead scope="col" className="h-auto px-1 py-1.5 text-right text-[0.8rem] font-bold text-muted-foreground">
+              Credited
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {data.map((m) => (
-            <tr key={m.id}>
-              <th scope="row">
-                {m.name} <span className="mode-count">{m.count}</span>
-              </th>
-              <td className="num debit">{m.debit > 0 ? formatMoney(m.debit) : "—"}</td>
-              <td className="num credit">{m.credit > 0 ? formatMoney(m.credit) : "—"}</td>
-            </tr>
+            <TableRow key={m.id}>
+              <TableHead scope="row" className="h-auto px-1 py-1.5 font-bold whitespace-normal">
+                {m.name}{" "}
+                <Badge variant="secondary" className="ml-1 text-xs text-muted-foreground">
+                  {m.count}
+                </Badge>
+              </TableHead>
+              <TableCell className="px-1 py-1.5 text-right text-destructive tabular-nums">
+                {m.debit > 0 ? formatMoney(m.debit) : "—"}
+              </TableCell>
+              <TableCell className="px-1 py-1.5 text-right text-credit tabular-nums">
+                {m.credit > 0 ? formatMoney(m.credit) : "—"}
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
