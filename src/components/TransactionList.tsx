@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,6 @@ import { emojiFor } from "../lib/categories";
 import { paymentModeName } from "../lib/paymentModes";
 import { formatDate, formatMoney, type Transaction } from "../lib/transactions";
 import type { PaymentMode } from "../types";
-import { matchesSearchQuery, useSearch } from "../hooks/useSearch";
 
 interface Props {
   transactions: Transaction[];
