@@ -49,7 +49,7 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
     let active = true;
     setBusy(true);
     setMessage(null);
-    void supabase.rpc("accept_family_invitation", { p_token: token })
+    void Promise.resolve(supabase.rpc("accept_family_invitation", { p_token: token }))
       .then(async ({ data, error }) => {
         if (!active) return;
         if (error) {

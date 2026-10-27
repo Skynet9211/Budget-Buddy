@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { useAppearanceOpen, useCloseAppearance } from "../hooks/useAppearanceRoute";
 import { useTheme, type Mode } from "../hooks/useTheme";
 import { PALETTES } from "../lib/themes";
 
-const MODES: { id: Mode; label: string; hint: string; icon: JSX.Element }[] = [
+const MODES: { id: Mode; label: string; hint: string; icon: ReactElement }[] = [
   {
     id: "light",
     label: "Light",
