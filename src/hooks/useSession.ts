@@ -21,7 +21,7 @@ export function useSession() {
     }
 
     const [{ data: memberRows }, { data: familyRows }] = await Promise.all([
-      supabase.from("family_members").select("*, profile:users!user_id(email)").eq("user_id", userId).order("created_at", { ascending: true }),
+      supabase.from("family_members").select("*").eq("user_id", userId).order("created_at", { ascending: true }),
       supabase.from("families").select("*").order("created_at", { ascending: true }),
     ]);
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import type { Family, FamilyInvitation, FamilyMember } from "../types";
 
@@ -12,6 +13,7 @@ interface FamilyPageProps {
 }
 
 export default function FamilyPage({ userId, email, families, selectedFamilyId, setSelectedFamilyId, onRefreshFamilies }: FamilyPageProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [familyName, setFamilyName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -20,6 +22,7 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
   const [invitations, setInvitations] = useState<FamilyInvitation[]>([]);
 
   const currentFamily = families.find((family) => family.id === selectedFamilyId) ?? null;
+  const canInvite = currentFamily?.owner_user_id === userId;
 
   useEffect(() => {
     if (!selectedFamilyId) {
@@ -30,7 +33,7 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
 
     async function loadFamilyData() {
       const [{ data: memberData }, { data: inviteData }] = await Promise.all([
-        supabase.from("family_members").select("*, user:users!user_id(email)").eq("family_id", selectedFamilyId),
+        supabase.from("family_members").select("*").eq("family_id", selectedFamilyId),
         supabase.from("family_invitations").select("*").eq("family_id", selectedFamilyId).order("created_at", { ascending: false }),
       ]);
       setMembers((memberData ?? []) as FamilyMember[]);
@@ -39,6 +42,42 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
 
     void loadFamilyData();
   }, [selectedFamilyId]);
+
+  useEffect(() => {
+    const token = searchParams.get("invite");
+    if (!token) return;
+    let active = true;
+    setBusy(true);
+    setMessage(null);
+    void supabase.rpc("accept_family_invitation", { p_token: token })
+      .then(async ({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setMessage({
+            text: `${error.message} Sign in with the email address that received this invitation; the invitation link is still available to retry.`,
+            kind: "error",
+          });
+        } else {
+          setMessage({ text: "Invitation accepted. You joined the family.", kind: "success" });
+          if (typeof data === "string") setSelectedFamilyId(data);
+          await onRefreshFamilies();
+          setSearchParams((params) => {
+            params.delete("invite");
+            return params;
+          }, { replace: true });
+        }
+        setBusy(false);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMessage({
+          text: `${error instanceof Error ? error.message : "Could not accept this invitation."} The invitation link is still available to retry.`,
+          kind: "error",
+        });
+        setBusy(false);
+      });
+    return () => { active = false; };
+  }, [searchParams, setSearchParams, onRefreshFamilies, setSelectedFamilyId]);
 
   async function createFamily(e: React.FormEvent) {
     e.preventDefault();
@@ -76,56 +115,60 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
 
   async function inviteMember(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedFamilyId || !inviteEmail.trim()) return;
+    const normalizedEmail = inviteEmail.trim().toLowerCase();
+    if (!selectedFamilyId || !normalizedEmail) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setMessage({ text: "Enter a valid email address.", kind: "error" });
+      return;
+    }
+    if (normalizedEmail === email.trim().toLowerCase()) {
+      setMessage({ text: "You are already in this family.", kind: "error" });
+      return;
+    }
     setBusy(true);
     setMessage(null);
 
-    const { error } = await supabase.from("family_invitations").insert({
-      family_id: selectedFamilyId,
-      email: inviteEmail.trim(),
-      invited_by: userId,
-      status: "pending",
-    });
+    let error;
+    try {
+      ({ error } = await supabase.functions.invoke("family-invite", {
+        body: {
+          familyId: selectedFamilyId,
+          email: normalizedEmail,
+          redirectTo: `${window.location.origin}/family`,
+        },
+      }));
+    } catch (reason) {
+      setMessage({
+        text: reason instanceof Error ? reason.message : "Could not send the invitation. Check your connection and try again.",
+        kind: "error",
+      });
+      setBusy(false);
+      return;
+    }
 
     if (error) {
-      setMessage({ text: error.message, kind: "error" });
+      let text = error.message;
+      if (error.context instanceof Response) {
+        try {
+          const body = await error.context.clone().json();
+          if (typeof body.error === "string") text = body.error;
+        } catch {
+          // Keep the function error message when the response has no JSON error body.
+        }
+      }
+      setMessage({ text, kind: "error" });
       setBusy(false);
       return;
     }
 
     setInviteEmail("");
     setBusy(false);
-    setMessage({ text: "Invite sent.", kind: "success" });
+    setMessage({ text: `Invitation email sent to ${normalizedEmail}.`, kind: "success" });
     await onRefreshFamilies();
     if (selectedFamilyId) {
       const { data } = await supabase.from("family_invitations").select("*").eq("family_id", selectedFamilyId).order("created_at", { ascending: false });
       setInvitations((data ?? []) as FamilyInvitation[]);
     }
-  }
-
-  async function acceptOwnInvite() {
-    const pending = invitations.find((inv) => inv.email.toLowerCase() === email.toLowerCase() && inv.status === "pending");
-    if (!pending) return;
-    const { error } = await supabase.from("family_invitations").update({ status: "accepted" }).eq("id", pending.id);
-    if (error) {
-      setMessage({ text: error.message, kind: "error" });
-      return;
-    }
-    const { error: memberError } = await supabase.from("family_members").upsert(
-      {
-        family_id: pending.family_id,
-        user_id: userId,
-        role: "member",
-      },
-      { onConflict: "family_id,user_id" },
-    );
-    if (memberError) {
-      setMessage({ text: memberError.message, kind: "error" });
-      return;
-    }
-    setSelectedFamilyId(pending.family_id);
-    setMessage({ text: "You joined the family.", kind: "success" });
-    await onRefreshFamilies();
   }
 
   return (
@@ -151,7 +194,7 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
               {members.length === 0 && <li>No family members yet.</li>}
               {members.map((member) => (
                 <li key={member.id}>
-                  {member.user_id === currentFamily.owner_user_id ? "Owner" : "Member"} · {member.user_id}
+                  {member.user_id === currentFamily.owner_user_id ? "Owner" : "Member"} · {member.user_id === userId ? email : member.user_id}
                 </li>
               ))}
             </ul>
@@ -170,13 +213,14 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="friend@example.com"
-                disabled={busy || !selectedFamilyId}
+                disabled={busy || !canInvite}
               />
             </label>
-            <button className="btn" disabled={busy || !selectedFamilyId || !inviteEmail.trim()}>
+            <button className="btn" disabled={busy || !canInvite || !inviteEmail.trim()}>
               Send invite
             </button>
           </form>
+          {currentFamily && !canInvite && <p className="hint">Only the family owner can invite members.</p>}
         </div>
       </div>
 
@@ -195,11 +239,6 @@ export default function FamilyPage({ userId, email, families, selectedFamilyId, 
         )}
       </div>
 
-      {invitations.some((inv) => inv.email.toLowerCase() === email.toLowerCase() && inv.status === "pending") && (
-        <button className="btn primary" onClick={() => void acceptOwnInvite()}>
-          Accept invite to this family
-        </button>
-      )}
     </section>
   );
 }

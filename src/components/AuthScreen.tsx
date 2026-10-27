@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
 type Mode = "signin" | "signup" | "forgot" | "code";
@@ -8,6 +9,8 @@ const DEMO_EMAIL = import.meta.env.VITE_DEMO_EMAIL as string | undefined;
 const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD as string | undefined;
 
 export default function AuthScreen() {
+  const [searchParams] = useSearchParams();
+  const hasFamilyInvite = Boolean(searchParams.get("invite"));
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,10 +31,19 @@ export default function AuthScreen() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setMessage({ text: error.message, kind: "error" });
     } else if (mode === "signup") {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        ...(hasFamilyInvite ? { options: { emailRedirectTo: window.location.href } } : {}),
+      });
       if (error) setMessage({ text: error.message, kind: "error" });
       else if (!data.session)
-        setMessage({ text: "Account created. Check your email to confirm, then sign in.", kind: "info" });
+        setMessage({
+          text: hasFamilyInvite
+            ? "Account created. Confirm your email using the link we sent you, and you’ll return here to accept the family invitation."
+            : "Account created. Check your email to confirm, then sign in.",
+          kind: "info",
+        });
     } else if (mode === "forgot") {
       // Emails a one-time code (see README for the email template change this needs).
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
@@ -61,7 +73,9 @@ export default function AuthScreen() {
       ? "Enter your email and we'll send you a code to reset your password."
       : mode === "code"
         ? "Enter the code from your email."
-        : "Sort your spending into categories, by voice or typing.";
+        : hasFamilyInvite
+          ? "Sign in or create an account with the email address that received the family invitation."
+          : "Sort your spending into categories, by voice or typing.";
   const submitLabel = { signin: "Sign in", signup: "Create account", forgot: "Send code", code: "Verify code" }[mode];
 
   return (

@@ -44,6 +44,20 @@ Run migration `007_payment_modes.sql` (existing transactions become UPI), then r
 
 A single note can include several transactions at once, such as multiple expenses for different people or vendors. The app breaks them into individual review cards and saves them together as one batch.
 
+### Family invitations
+
+Family invitations need migrations `008_family_structure.sql` and `009_family_invitation_acceptance.sql`, plus the `family-invite` Edge Function. Apply pending migrations with `supabase db push`, then deploy the function with `supabase functions deploy family-invite`.
+
+Set these Supabase Edge Function secrets before sending invites:
+
+| Secret | Value |
+| --- | --- |
+| `RESEND_API_KEY` | API key for the Resend account that sends invitation email |
+| `FAMILY_INVITE_FROM` | Verified sender address, such as `Budget Buddy <invites@example.com>` |
+| `APP_SITE_URL` | Public origin of the app, such as `https://budget.example.com` |
+
+The recipient must sign in or create an account with the invited email address. If email confirmation is enabled, the confirmation link returns them to the family invitation so they can accept it.
+
 ## Tech stack
 
 - React + Vite for the frontend
