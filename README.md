@@ -46,7 +46,7 @@ A single note can include several transactions at once, such as multiple expense
 
 ### Family invitations
 
-Family invitations need migrations `008_family_structure.sql` and `009_family_invitation_acceptance.sql`, plus the `family-invite` Edge Function. Apply pending migrations with `supabase db push`, then deploy the function with `supabase functions deploy family-invite`.
+Family invitations need migrations `008_family_structure.sql`, `009_family_invitation_acceptance.sql`, and `010_family_invitation_jwt_email.sql`, plus the `family-invite` Edge Function. Apply pending migrations with `supabase db push`, then deploy the function with `supabase functions deploy family-invite`.
 
 Set these Supabase Edge Function secrets before sending invites:
 
