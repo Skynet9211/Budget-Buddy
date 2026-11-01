@@ -44,6 +44,29 @@ Run migration `007_payment_modes.sql` (existing transactions become UPI), then r
 
 A single note can include several transactions at once, such as multiple expenses for different people or vendors. The app breaks them into individual review cards and saves them together as one batch.
 
+### Import a statement
+
+The **Import** tab reads a bank, UPI or credit card statement and adds its transactions in bulk:
+
+1. Choose a PDF or Word (`.docx`) file and the dates you want (a preset or a custom From/To).
+2. The file is read in the browser (nothing is uploaded except the extracted text). PDF rows are rebuilt so each amount stays under its column header, which is how a withdrawal is told apart from a deposit.
+3. The text is sent in parts to the `parse-statement` function, which asks the AI for the rows in your date range and drops any row outside it. Categories go through the same history and name matching as typed notes.
+4. The rows appear in an editable table: date, who, money out or in, amount, mode of payment and category. Rows that match a transaction you've already saved (same date, amount and direction) are marked **Possible duplicate** and unticked. Fix anything, untick what you don't want, add missing rows, then save.
+
+Rows are saved 50 at a time. Each saved row keeps the statement's own narration as its note ("Imported from statement.pdf: ...").
+
+Supported: PDFs with selectable text, and Word files. Not yet supported: password-protected PDFs, scanned PDFs, and Excel/CSV.
+
+Deploy with:
+
+```bash
+supabase db push                              # applies 009_restore_payment_mode.sql
+supabase functions deploy parse-statement
+supabase functions deploy parse-transaction   # shares code with parse-statement now
+```
+
+Migration `009_restore_payment_mode.sql` fixes saving the mode of payment. Migration 008 had dropped it from `add_transactions`, so every transaction was saved as UPI.
+
 ## Tech stack
 
 - React + Vite for the frontend

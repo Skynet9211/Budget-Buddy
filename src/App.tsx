@@ -12,6 +12,7 @@ import Dashboard from "./components/Dashboard";
 import TransactionInput from "./components/TransactionInput";
 import TransactionList from "./components/TransactionList";
 import TransactionDetail from "./components/TransactionDetail";
+import ImportStatement from "./components/ImportStatement";
 import { supabase } from "./lib/supabase";
 import AuthScreen from "./components/AuthScreen";
 import SetNewPassword from "./components/SetNewPassword";
@@ -37,6 +38,7 @@ const useHome = () => useOutletContext<HomeContext>();
 const TABS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/transactions", label: "Transactions" },
+  { to: "/import", label: "Import" },
   { to: "/categories", label: "Categories" },
   { to: "/family", label: "Family" },
 ];
@@ -138,6 +140,21 @@ function TransactionsPage() {
   );
 }
 
+function ImportPage() {
+  const { categories, txns, paymentModes, setReviewing, selectedFamilyId } = useHome();
+  return (
+    <ImportStatement
+      categories={categories.categories}
+      paymentModes={paymentModes}
+      familyId={selectedFamilyId}
+      onReviewChange={setReviewing}
+      onSaved={async () => {
+        await Promise.all([txns.refresh(), categories.reload()]);
+      }}
+    />
+  );
+}
+
 function TransactionDetailPage() {
   const { transactionId } = useParams();
   const { paymentModes } = useHome();
@@ -174,6 +191,7 @@ function AppRoutes({ userId, email, families, selectedFamilyId, setSelectedFamil
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/transactions/:transactionId" element={<TransactionDetailPage />} />
+        <Route path="/import" element={<ImportPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/family" element={<FamilyPage userId={userId} email={email ?? ""} families={families} selectedFamilyId={selectedFamilyId} setSelectedFamilyId={setSelectedFamilyId} onRefreshFamilies={refreshFamilies} />} />
       </Route>

@@ -17,7 +17,8 @@
 .dashboard .card-head h2 { margin: 0; }
 
 /* Segmented control (date presets, weekly/monthly) */
-.dashboard .seg {
+.dashboard .seg,
+.import .seg {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.25rem;
@@ -25,7 +26,8 @@
   border-radius: 12px;
   padding: 0.25rem;
 }
-.dashboard .seg button {
+.dashboard .seg button,
+.import .seg button {
   font: inherit;
   font-size: 0.85rem;
   font-weight: 700;
@@ -37,15 +39,19 @@
   border-radius: 9px;
   cursor: pointer;
 }
-.dashboard .seg button.on {
+.dashboard .seg button.on,
+.import .seg button.on {
   background: var(--card);
   color: var(--accent-dark);
   box-shadow: var(--shadow);
 }
 
-.dashboard .date-filter { display: flex; flex-direction: column; gap: 0.7rem; }
-.dashboard .custom-range { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
-.dashboard .custom-range label {
+.dashboard .date-filter,
+.import .date-filter { display: flex; flex-direction: column; gap: 0.7rem; }
+.dashboard .custom-range,
+.import .custom-range { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.dashboard .custom-range label,
+.import .custom-range label {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;

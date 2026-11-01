@@ -75,6 +75,21 @@ export async function parseTransactionAudio(audio: Blob): Promise<ParseResult> {
   return toResult(data);
 }
 
+/** One row read from a statement. `description` is the statement's own narration for that row. */
+export interface StatementTransaction extends ParsedTransaction {
+  description: string | null;
+}
+
+/** The transactions dated `from`..`to` in one chunk of statement text. An empty list is not an error. */
+export async function parseStatementChunk(text: string, from: string, to: string): Promise<StatementTransaction[]> {
+  const { data, error } = await supabase.functions.invoke("parse-statement", {
+    body: { text, from, to, today: localToday() },
+  });
+  if (error) throw new Error(await errorMessage(error));
+  const list = (data as { transactions?: unknown } | null)?.transactions;
+  return Array.isArray(list) ? (list as StatementTransaction[]) : [];
+}
+
 export interface NewTransaction {
   type: TxnType;
   date: string;
@@ -112,6 +127,65 @@ export async function saveTransactions(items: NewTransaction[]): Promise<string[
   });
   if (error) throw new Error(error.message);
   return (data ?? []) as string[];
+}
+
+/** Matches the per-call cap in the `add_transactions` database function. */
+const SAVE_BATCH = 50;
+
+/** A batched save that failed part-way. The first `saved` items were stored. */
+export class PartialSaveError extends Error {
+  constructor(
+    message: string,
+    readonly saved: number,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Saves any number of transactions, 50 per database call, in order. Each call is all-or-nothing;
+ * if a later one fails, a `PartialSaveError` says how many were already saved.
+ */
+export async function saveTransactionsBatched(items: NewTransaction[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (let i = 0; i < items.length; i += SAVE_BATCH) {
+    try {
+      ids.push(...(await saveTransactions(items.slice(i, i + SAVE_BATCH))));
+    } catch (err) {
+      if (!ids.length) throw err;
+      throw new PartialSaveError(`Saved ${ids.length} of ${items.length}, then failed: ${(err as Error).message}`, ids.length);
+    }
+  }
+  return ids;
+}
+
+/** Date, type and amount of every saved transaction dated `from`..`to`, for spotting re-imports. */
+export async function fetchTransactionKeysInRange(
+  from: string,
+  to: string,
+): Promise<Array<{ date: string; type: TxnType; amount: number }>> {
+  const out: Array<{ date: string; type: TxnType; amount: number }> = [];
+  for (let start = 0; ; start += SPENDING_PAGE) {
+    const { data, error } = await supabase
+      .from("transaction_dates")
+      .select("txn_date,txn:transactions(type,amount:transaction_amounts(amount))")
+      .gte("txn_date", from)
+      .lte("txn_date", to)
+      .order("transaction_id")
+      .range(start, start + SPENDING_PAGE - 1);
+    if (error) throw new Error(error.message);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (data ?? []) as any[];
+    for (const r of rows) {
+      const txn = one<{ type: string; amount: unknown }>(r.txn);
+      const amount = one<{ amount: number | string }>(txn?.amount as { amount: number | string } | null);
+      if (!txn || !amount) continue;
+      out.push({ date: r.txn_date, type: txn.type === "credit" ? "credit" : "debit", amount: Number(amount.amount) });
+    }
+    if (rows.length < SPENDING_PAGE) break;
+  }
+  return out;
 }
 
 export interface Transaction {

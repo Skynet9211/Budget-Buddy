@@ -1,0 +1,107 @@
+/* Statement import */
+.import h3 { margin-top: 0.9rem; }
+
+.file-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.8rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--accent-dark);
+}
+.file-pick input[type="file"] { padding: 0.55rem 0.6rem; cursor: pointer; }
+
+/* The review table needs more room than the usual single column. */
+.page:has(.import-review) { max-width: 1180px; }
+
+.import-table-wrap {
+  overflow-x: auto;
+  margin: 0.4rem -0.2rem 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.import-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 0.55rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.import-table td {
+  padding: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.import-table tbody tr:last-child td { border-bottom: 0; }
+.import-table tr.off td:not(.sticky) { opacity: 0.45; }
+
+/* Keep the include checkbox visible while the table scrolls sideways on phones. */
+.import-table .sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  width: 2.2rem;
+  text-align: center;
+}
+.import-table input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin-top: 0.7rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.import-table th input[type="checkbox"] { margin-top: 0; }
+
+.import-table input:not([type="checkbox"]),
+.import-table select {
+  min-height: 40px;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+.import-table td:nth-child(2) input { width: 9.5rem; }
+.import-table td:nth-child(5) input { width: 6.5rem; text-align: right; }
+.import-table td:nth-child(6) select { width: 7.5rem; }
+.import-table .party-cell { min-width: 12rem; }
+.import-table .category-cell { min-width: 10rem; }
+.import-table .category-cell input { margin-top: 0.3rem; }
+
+.import-table .narration {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.import-table .badge {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--debit-bg);
+  color: var(--error);
+}
+
+.type-toggle.compact { margin: 0; gap: 0.3rem; }
+.type-toggle.compact button {
+  min-height: 40px;
+  padding: 0 0.55rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.import .add-row { margin-top: 0.6rem; }
