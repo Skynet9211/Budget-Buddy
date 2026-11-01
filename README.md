@@ -20,7 +20,7 @@ Categories are chosen in tiers. Each tier runs only if the one before it wasn't 
 
 1. **History**: the party name (e.g. "Swiggy") is embedded and compared with your own past, categorised transactions (pgvector). The nearest ones vote on the category, weighted by similarity. No AI call.
 2. **Category names**: the nearest category names by vector similarity. Covers the cold start, when there's little history. No AI call.
-3. **AI (Groq)**: picks from a shortlist, shown a few similar past transactions as examples. It can also suggest a new category.
+3. **AI (Groq, with Gemini fallback)**: picks from a shortlist, shown a few similar past transactions as examples. It can also suggest a new category. If Groq returns an error or cannot be reached, the Supabase function retries with Gemini Flash.
 
 Every result is still shown for review before saving, and every saved transaction becomes history for next time. Embeddings use Supabase's built-in `gte-small` model (no API key). They're written in the background by the `categorize` function's `sync` action, which the app runs after each save. Run migration `006_transaction_vectors.sql` to enable the history tier. Without it, the app falls back to the other tiers.
 
@@ -74,6 +74,7 @@ Migration `009_restore_payment_mode.sql` fixes saving the mode of payment. Migra
 - Supabase for authentication and database storage
 - Edge functions for AI parsing and categorization
 - Groq for speech-to-text and AI-assisted classification
+- Gemini Flash as a server-side fallback when Groq fails
 
 ## Run locally
 
@@ -96,5 +97,5 @@ This opens Android Studio so you can run the app on an emulator or connected dev
 ## Notes
 
 - The project is built for personal finance tracking and quick transaction entry.
-- Voice input and AI categorization rely on the configured Supabase/Groq backend.
+- Voice input and AI categorization rely on the configured Supabase AI backend. Set `GROQ_API_KEY` and `GEMINI_API_KEY` as Supabase function secrets; Gemini fallback tries `gemini-3.8-flash` and then `gemini-3.6-flash` (override the first model with `GEMINI_MODEL`).
 - The app is designed to be simple, fast, and usable from both web and mobile contexts.

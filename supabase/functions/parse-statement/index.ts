@@ -19,6 +19,7 @@ import {
   type PaymentMode,
   type Raw,
 } from "../_shared/transactions.ts";
+import { hasAiProviderKey } from "../_shared/ai.ts";
 
 const MAX_TEXT_CHARS = 12000;
 const MAX_TRANSACTIONS = 200;
@@ -50,8 +51,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const apiKey = Deno.env.get("GROQ_API_KEY");
-  if (!apiKey) return json({ error: "Server is missing GROQ_API_KEY" }, 500);
+  if (!hasAiProviderKey()) return json({ error: "Server is missing GROQ_API_KEY and GEMINI_API_KEY" }, 500);
 
   const auth = await authenticate(req);
   if ("error" in auth) return auth.error;
@@ -76,7 +76,6 @@ Deno.serve(async (req) => {
     const raw = await chatForTransactions(
       SYSTEM_PROMPT,
       `Date range: From ${from} To ${to}\n\nExisting categories:\n${list}\n\nPayment modes:\n${modeList}\n\nStatement text:\n${text}`,
-      apiKey,
     );
 
     const parsed = raw

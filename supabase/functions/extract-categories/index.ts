@@ -1,8 +1,8 @@
 // Supabase Edge Function (Deno). Turns typed text or recorded audio into a clean list of
-// spending-category names using Groq (Whisper for speech-to-text, gpt-oss for extraction).
-// The Groq key lives in the GROQ_API_KEY secret, never in the app.
+// spending-category names using Groq with Gemini as a server-side fallback.
 
-const GROQ_URL = "https://api.groq.com/openai/v1";
+import { chatWithFallback, hasAiProviderKey, transcribeWithGemini } from "../_shared/ai.ts";
+
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 const MAX_TEXT_CHARS = 500;
 
@@ -31,45 +31,34 @@ Rules:
 - If nothing related to spending categories is said, return {"categories": []}.
 - Never include explanations.`;
 
-async function transcribe(audio: File, apiKey: string): Promise<string> {
+async function transcribe(audio: File): Promise<string> {
   const form = new FormData();
   form.append("file", audio, audio.name || "voice.webm");
   form.append("model", "whisper-large-v3-turbo");
   form.append("response_format", "json");
   form.append("temperature", "0");
-  // Short clips are often misdetected (e.g. as Icelandic), so pin the language and hint the topic.
-  form.append("language", Deno.env.get("GROQ_STT_LANGUAGE") ?? "en");
+  form.append("language", Deno.env.get("GROQ_STT_LANGUAGE") || "en");
   form.append("prompt", "Spending categories and apps: rent, groceries, transport, eating out, utilities, subscriptions, Amazon, Flipkart, Swiggy, Zomato, Uber, Ola, Netflix, Spotify, BigBasket, Myntra.");
-  const res = await fetch(`${GROQ_URL}/audio/transcriptions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
-  if (!res.ok) throw new Error(`Speech-to-text failed (${res.status})`);
-  const data = await res.json();
-  return String(data.text ?? "").trim();
+  const apiKey = Deno.env.get("GROQ_API_KEY");
+  if (apiKey) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + apiKey }, body: form });
+      if (!res.ok) {
+        console.error("Groq STT error", res.status, await res.text());
+        throw new Error("Speech-to-text failed (" + res.status + ")");
+      }
+      const data = await res.json();
+      if (typeof data.text === "string" && data.text.trim()) return data.text.trim();
+      throw new Error("Groq returned an empty transcript");
+    } catch (err) {
+      console.error("Groq transcription failed; trying Gemini:", (err as Error).message);
+    }
+  }
+  return await transcribeWithGemini(audio, "This is a request to add spending categories such as rent, groceries, transport, Amazon, Swiggy, or Netflix.");
 }
 
-async function extract(text: string, apiKey: string): Promise<string[]> {
-  const res = await fetch(`${GROQ_URL}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: Deno.env.get("GROQ_CHAT_MODEL") ?? "openai/gpt-oss-20b",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: text },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    console.error("Groq chat error", res.status, await res.text());
-    throw new Error(`AI request failed (${res.status})`);
-  }
-  const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content ?? "{}";
+async function extract(text: string): Promise<string[]> {
+  const content = await chatWithFallback(SYSTEM_PROMPT, text);
   try {
     const parsed = JSON.parse(content);
     return Array.isArray(parsed.categories) ? parsed.categories.filter((c: unknown) => typeof c === "string") : [];
@@ -82,8 +71,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const apiKey = Deno.env.get("GROQ_API_KEY");
-  if (!apiKey) return json({ error: "Server is missing GROQ_API_KEY" }, 500);
+  if (!hasAiProviderKey()) return json({ error: "Server is missing GROQ_API_KEY and GEMINI_API_KEY" }, 500);
 
   // Require a signed-in user so the AI quota can't be used by strangers.
   const authHeader = req.headers.get("Authorization") ?? "";
@@ -107,7 +95,7 @@ Deno.serve(async (req) => {
       const audio = form.get("audio");
       if (!(audio instanceof File)) return json({ error: "No audio provided" }, 400);
       if (audio.size > MAX_AUDIO_BYTES) return json({ error: "Recording is too long" }, 413);
-      transcript = await transcribe(audio, apiKey);
+      transcript = await transcribe(audio);
       text = transcript;
     } else {
       const body = await req.json();
@@ -117,7 +105,7 @@ Deno.serve(async (req) => {
     text = text.trim().slice(0, MAX_TEXT_CHARS);
     if (!text) return json({ transcript, categories: [] });
 
-    const categories = await extract(text, apiKey);
+    const categories = await extract(text);
     return json({ transcript, categories });
   } catch (err) {
     console.error(err);

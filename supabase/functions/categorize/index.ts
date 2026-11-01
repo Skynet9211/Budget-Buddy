@@ -7,10 +7,10 @@
 // Tiers (each runs only if the one before it wasn't sure; see _shared/vectors.ts):
 //   1. HISTORY - the user's own similar past transactions vote on the category. No LLM call.
 //   2. NAME    - nearest category names (pgvector). No LLM call.
-//   3. LLM     - Groq gets the shortlist plus a few similar past transactions as examples, and
-//                picks one (or suggests a new category).
+//   3. LLM     - Groq, with Gemini fallback, gets the shortlist and similar past transactions.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { chatWithFallback } from "../_shared/ai.ts";
 import {
   type CategoryRef,
   type Neighbour,
@@ -19,7 +19,6 @@ import {
   syncTransactions,
 } from "../_shared/vectors.ts";
 
-const GROQ_URL = "https://api.groq.com/openai/v1";
 const MAX_TEXT_CHARS = 500;
 const MAX_EXAMPLES = 5;
 
@@ -49,36 +48,19 @@ async function pickWithLlm(
   text: string,
   candidates: CategoryRef[],
   examples: Neighbour[],
-  apiKey: string,
 ): Promise<{ category: string | null; suggestion: string | null }> {
-  const list = candidates.length ? candidates.map((c) => `- ${c.name}`).join("\n") : "(none yet)";
+  const list = candidates.length ? candidates.map((c) => "- " + c.name).join("\n") : "(none yet)";
   const shots = examples.length
-    ? `\n\nSimilar past transactions by this user:\n${examples.map((e) => `- ${e.party ?? "(no name)"} -> ${e.category_name}`).join("\n")}`
+    ? "\n\nSimilar past transactions by this user:\n" + examples.map((e) => "- " + (e.party || "(no name)") + " -> " + e.category_name).join("\n")
     : "";
-  const res = await fetch(`${GROQ_URL}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: Deno.env.get("GROQ_CHAT_MODEL") ?? "openai/gpt-oss-20b",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Description: ${text}\n\nCategories:\n${list}${shots}` },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    console.error("Groq chat error", res.status, await res.text());
-    throw new Error(`AI request failed (${res.status})`);
-  }
-  const data = await res.json();
+  const content = await chatWithFallback(SYSTEM_PROMPT, "Description: " + text + "\n\nCategories:\n" + list + shots);
   try {
-    const parsed = JSON.parse(data?.choices?.[0]?.message?.content ?? "{}");
-    return {
-      category: typeof parsed.category === "string" ? parsed.category : null,
-      suggestion: typeof parsed.suggestion === "string" ? parsed.suggestion.trim().slice(0, 40) || null : null,
-    };
+    const parsed = JSON.parse(content);
+    let category: string | null = null;
+    let suggestion: string | null = null;
+    if (typeof parsed.category === "string") category = parsed.category;
+    if (typeof parsed.suggestion === "string") suggestion = parsed.suggestion.trim().slice(0, 40) || null;
+    return { category, suggestion };
   } catch {
     return { category: null, suggestion: null };
   }
@@ -141,13 +123,12 @@ Deno.serve(async (req) => {
     }
     const examples = found.neighbours.slice(0, MAX_EXAMPLES);
 
-    const apiKey = Deno.env.get("GROQ_API_KEY");
-    if (!apiKey) {
+    if (!Deno.env.get("GROQ_API_KEY") && !Deno.env.get("GEMINI_API_KEY")) {
       // No LLM available and no clear winner: return the shortlist so the app can ask the user.
       return json({ source: "vector-low", category: null, suggestion: null, candidates: found.nameMatches });
     }
 
-    const pick = await pickWithLlm(text, candidates, examples, apiKey);
+    const pick = await pickWithLlm(text, candidates, examples);
     const chosen = pick.category
       ? candidates.find((c) => c.name.trim().toLowerCase() === pick.category!.trim().toLowerCase()) ?? null
       : null;

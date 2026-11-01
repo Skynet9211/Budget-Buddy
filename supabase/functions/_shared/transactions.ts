@@ -1,10 +1,10 @@
 // Shared by `parse-transaction` (typed/spoken notes) and `parse-statement` (bank statements):
-// the Groq chat call, field validation, payment-mode resolution and the vector category check.
+// AI chat fallback, field validation, payment-mode resolution and vector category checks.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveByVectors } from "./vectors.ts";
+import { chatWithFallback } from "./ai.ts";
 
-export const GROQ_URL = "https://api.groq.com/openai/v1";
 const MAX_CATEGORIES = 100;
 
 export const corsHeaders = {
@@ -200,46 +200,14 @@ export async function refineCategories<T extends Sanitized>(
  * One JSON-mode chat completion. Retries once on the free-tier tokens-per-minute limit (429).
  * Returns the list of transaction objects the model produced, or [] if its reply isn't JSON.
  */
-export async function chatForTransactions(system: string, user: string, apiKey: string): Promise<Raw[]> {
-  const request = () =>
-    fetch(`${GROQ_URL}/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: Deno.env.get("GROQ_CHAT_MODEL") ?? "openai/gpt-oss-20b",
-        temperature: 0,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
-    });
-
-  let res = await request();
-  if (res.status === 429) {
-    const wait = Math.min(Number((res.headers.get("retry-after") ?? "4")) || 4, 8);
-    await new Promise((r) => setTimeout(r, wait * 1000));
-    res = await request();
-  }
-  if (!res.ok) {
-    if (res.status === 429) throw new Error("The AI is busy right now. Please try again in a few seconds.");
-    const errorBody = await res.text();
-    console.error("Groq chat error", res.status, errorBody);
-    let detail = "";
-    try {
-      const providerMessage = (JSON.parse(errorBody) as { error?: { message?: unknown } })?.error?.message;
-      if (typeof providerMessage === "string") detail = providerMessage.trim().slice(0, 300);
-    } catch {
-      // Some upstream errors aren't JSON; keep the generic status message in that case.
-    }
-    throw new Error(`AI request failed (${res.status})${detail ? `: ${detail}` : ""}`);
-  }
-  const data = await res.json();
+export async function chatForTransactions(system: string, user: string): Promise<Raw[]> {
+  const content = await chatWithFallback(system, user);
   try {
-    const parsed = JSON.parse(data?.choices?.[0]?.message?.content ?? "{}");
-    // Be forgiving: accept {"transactions": [...]}, a bare array, or a single object.
-    const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.transactions) ? parsed.transactions : [parsed];
+    const parsed = JSON.parse(content);
+    let list: unknown[];
+    if (Array.isArray(parsed)) list = parsed;
+    else if (parsed && Array.isArray(parsed.transactions)) list = parsed.transactions;
+    else list = [parsed];
     return list.filter((t: unknown): t is Raw => !!t && typeof t === "object" && !Array.isArray(t));
   } catch {
     return [];

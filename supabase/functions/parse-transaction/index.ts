@@ -7,10 +7,9 @@
 //   POST multipart  audio=<file>, today=<YYYY-MM-DD>   (speech is transcribed first)
 //
 // Nothing is saved here. The app shows the result for confirmation, then calls the
-// `add_transactions` database function. The Groq key lives in the GROQ_API_KEY secret.
+// `add_transactions` database function. AI provider keys are server-side Supabase secrets.
 
 import {
-  GROQ_URL,
   authenticate,
   chatForTransactions,
   corsHeaders,
@@ -22,6 +21,7 @@ import {
   type PaymentMode,
   type Raw,
 } from "../_shared/transactions.ts";
+import { hasAiProviderKey, transcribeWithGemini } from "../_shared/ai.ts";
 
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 const MAX_TEXT_CHARS = 1000;
@@ -47,28 +47,31 @@ Rules:
 - payment_mode: how the money was paid or received. Use the id from the "Payment modes" list ONLY when the note explicitly says so, e.g. "cash"/"nakad"/"नकद" -> cash, "gpay"/"phonepe"/"upi" -> upi, "card"/"credit card"/"debit card" -> card, "netbanking"/"neft"/"imps"/"rtgs"/"bank transfer" -> netbanking, "wallet"/"paytm wallet" -> wallet, "cheque" -> cheque. The mode word belongs to the transaction it sits in ("blinkit 300 cash, uber 150" = only Blinkit is cash). It is NOT a party or a category. If the note says nothing about it, or says something that is not in the list, use null.
 - Never include explanations, only the JSON.`;
 
-async function transcribe(audio: File, apiKey: string): Promise<string> {
+async function transcribe(audio: File): Promise<string> {
   const form = new FormData();
   form.append("file", audio, audio.name || "voice.webm");
   form.append("model", "whisper-large-v3");
   form.append("response_format", "json");
   form.append("temperature", "0");
-  // Short clips are often misdetected (e.g. as Icelandic). A mixed Hindi/English prompt keeps
-  // detection on Hindi or English. Set GROQ_TXN_STT_LANGUAGE (e.g. "hi" or "en") to pin it.
   const language = Deno.env.get("GROQ_TXN_STT_LANGUAGE");
   if (language) form.append("language", language);
   form.append("prompt", "15 sep Akhil 500 rupees. आज अखिल को 500 रुपये दिए. kal Swiggy 350 rs. salary 25000 mila.");
-  const res = await fetch(`${GROQ_URL}/audio/transcriptions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
-  if (!res.ok) {
-    console.error("Groq STT error", res.status, await res.text());
-    throw new Error(`Speech-to-text failed (${res.status})`);
+  const apiKey = Deno.env.get("GROQ_API_KEY");
+  if (apiKey) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + apiKey }, body: form });
+      if (!res.ok) {
+        console.error("Groq STT error", res.status, await res.text());
+        throw new Error("Speech-to-text failed (" + res.status + ")");
+      }
+      const data = await res.json();
+      if (typeof data.text === "string" && data.text.trim()) return data.text.trim();
+      throw new Error("Groq returned an empty transcript");
+    } catch (err) {
+      console.error("Groq transcription failed; trying Gemini:", (err as Error).message);
+    }
   }
-  const data = await res.json();
-  return String(data.text ?? "").trim();
+  return await transcribeWithGemini(audio, "This is a personal finance note in English, Hindi, or Hinglish.");
 }
 
 async function parseWithLlm(
@@ -76,15 +79,13 @@ async function parseWithLlm(
   today: string,
   categories: string[],
   modes: PaymentMode[],
-  apiKey: string,
 ): Promise<Raw[]> {
-  const list = categories.length ? categories.map((c) => `- ${c}`).join("\n") : "(none yet)";
-  const modeList = modes.map((m) => `- ${m.id} (${m.name})`).join("\n");
-  const weekday = new Date(`${today}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+  const list = categories.length ? categories.map((c) => "- " + c).join("\n") : "(none yet)";
+  const modeList = modes.map((m) => "- " + m.id + " (" + m.name + ")").join("\n");
+  const weekday = new Date(today + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
   return await chatForTransactions(
     SYSTEM_PROMPT,
-    `Today: ${today} (${weekday})\n\nExisting categories:\n${list}\n\nPayment modes:\n${modeList}\n\nNote: ${text}`,
-    apiKey,
+    "Today: " + today + " (" + weekday + ")\n\nExisting categories:\n" + list + "\n\nPayment modes:\n" + modeList + "\n\nNote: " + text,
   );
 }
 
@@ -92,8 +93,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const apiKey = Deno.env.get("GROQ_API_KEY");
-  if (!apiKey) return json({ error: "Server is missing GROQ_API_KEY" }, 500);
+  if (!hasAiProviderKey()) return json({ error: "Server is missing GROQ_API_KEY and GEMINI_API_KEY" }, 500);
 
   const auth = await authenticate(req);
   if ("error" in auth) return auth.error;
@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
       if (!(audio instanceof File)) return json({ error: "No audio provided" }, 400);
       if (audio.size > MAX_AUDIO_BYTES) return json({ error: "Recording is too long" }, 413);
       todayInput = String(form.get("today") ?? "");
-      transcript = await transcribe(audio, apiKey);
+      transcript = await transcribe(audio);
       text = transcript;
     } else {
       const body = await req.json();
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     const today = resolveToday(todayInput);
     const { categories, modes } = await loadCategoriesAndModes(supabase);
 
-    const raw = await parseWithLlm(text, today, categories.map((c) => c.name), modes, apiKey);
+    const raw = await parseWithLlm(text, today, categories.map((c) => c.name), modes);
     const parsed = raw
       .slice(0, MAX_TRANSACTIONS)
       .map((r) => sanitize(r, today, categories, modes))
