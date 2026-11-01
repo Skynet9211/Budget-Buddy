@@ -224,8 +224,16 @@ export async function chatForTransactions(system: string, user: string, apiKey: 
   }
   if (!res.ok) {
     if (res.status === 429) throw new Error("The AI is busy right now. Please try again in a few seconds.");
-    console.error("Groq chat error", res.status, await res.text());
-    throw new Error(`AI request failed (${res.status})`);
+    const errorBody = await res.text();
+    console.error("Groq chat error", res.status, errorBody);
+    let detail = "";
+    try {
+      const providerMessage = (JSON.parse(errorBody) as { error?: { message?: unknown } })?.error?.message;
+      if (typeof providerMessage === "string") detail = providerMessage.trim().slice(0, 300);
+    } catch {
+      // Some upstream errors aren't JSON; keep the generic status message in that case.
+    }
+    throw new Error(`AI request failed (${res.status})${detail ? `: ${detail}` : ""}`);
   }
   const data = await res.json();
   try {
